@@ -3,3 +3,5 @@ openai
 python-dotenv
 yt-dlp
 httpx
+Authlib
+requests

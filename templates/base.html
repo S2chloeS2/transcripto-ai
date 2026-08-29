@@ -15,8 +15,23 @@
       <span class="brand-dot"></span> TranscriptoAI
     </a>
     <div class="nav-links">
-      <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">새 기록</a>
-      <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">지난 기록</a>
+      {% if current_user %}
+        <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">새 기록</a>
+        <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">지난 기록</a>
+        <div class="nav-user">
+          <span class="nav-avatar" title="{{ current_user.email }}">
+            {% if current_user.picture %}
+              <img src="{{ current_user.picture }}" alt="" referrerpolicy="no-referrer">
+            {% else %}
+              {{ (current_user.name or current_user.email)[0]|upper }}
+            {% endif %}
+          </span>
+          <a class="nav-link" href="{{ url_for('auth.logout') }}">로그아웃</a>
+        </div>
+      {% else %}
+        <a class="nav-link" href="{{ url_for('auth.login') }}">로그인</a>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">무료로 시작하기</a>
+      {% endif %}
     </div>
   </nav>
 

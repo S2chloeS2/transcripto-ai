@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}My App{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">   
+
+    <!-- Custom CSS -->
+    <style>
+        /* Basic Layout Styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141619; /* 피그마 배경색 */
+            color: #E5E5E5; /* 피그마 텍스트 색상 */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header Styling */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #1E1E1E; /* 피그마 헤더 배경색 */
+            border-bottom: 1px solid #5882C1; /* 피그마 테두리 색상 */
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            background: linear-gradient(135deg, #8da7f9, #ff3bff);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+                font-size: 1.5rem;
+        }
+
+        /* Navbar Styling */
+        .nav-link {
+            font-weight: 500;
+            color: #E5E5E5; /* 피그마 네비게이션 링크 색상 */
+            transition: color 0.3s ease, transform 0.3s ease;
+        }
+
+        .nav-link:hover {
+            color: #FF3BFF; /* 피그마 hover 색상 */
+            transform: scale(1.05);
+        }
+
+        /* Main Content Styling */
+        main {
+            padding: 3rem 0;
+            animation: fadeIn 1s ease;
+        }
+
+        .container {
+            background-color: #1E1E1E; /* 피그마 컨테이너 배경색 */
+            color: #E5E5E5; /* 텍스트 색상 */
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(88, 130, 193, 0.1); /* 피그마 그림자 */
+        }
+
+        /* Footer Styling */
+        footer {
+            background-color: #141619; /* 피그마 배경 */
+            padding: 1rem 0;
+            border-top: 1px solid #5882C1; /* 피그마 테두리 */
+            color: #E5E5E5;
+        }
+
+        footer p {
+            margin: 0;
+            font-size: 0.9rem;
+        }
+
+        /* Button Styling */
+        .btn-custom {
+            background-color: #FF3BFF; /* 피그마 버튼 색상 */
+            color: #ffffff;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: 0.3s ease;
+        }
+
+        .btn-custom:hover {
+            background-color: #E63BE6; /* 피그마 hover 색상 */
+            transform: translateY(-3px);
+        }
+
+        /* Keyframes for Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <header>
+        <nav class="navbar navbar-expand-lg navbar-light">
+            <div class="container">
+                <a class="navbar-brand" href="/">Notetaking Master</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/summary">Summary</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/review">Review</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main>
+        <div class="container">
+            {% block content %}
+            <!-- Page-specific content will go here -->
+            {% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center">
+        <div class="container">
+            <p class="m-0">&copy; 2024 My App | All rights reserved</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

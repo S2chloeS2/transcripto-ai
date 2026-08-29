@@ -1,0 +1,7 @@
+# Optional: on-device transcription (TRANSCRIBE_BACKEND=local).
+# Several GB of downloads. Not needed for the default hosted-API backend.
+-r requirements.txt
+numpy
+SpeechRecognition
+openai-whisper
+torch

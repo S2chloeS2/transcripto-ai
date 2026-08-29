@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block title %}Welcome to the Notetaking App{% endblock %}
+
+{% block content %}
+<div class="container mt-5 customized-note">
+    <!-- Header Section -->
+    <div class="subtitle">TranscriptoAI</div>
+    <div class="title">Customized Summary Note</div>
+    <p>Please ensure you're not too far from the device and minimize background noise for clearer audio</p>
+    <div class="floating-circle circle-1"></div>
+    <div class="floating-circle circle-2"></div>
+
+    <!-- Summary Note Editing Section -->
+    <div class="row">
+        <div class="col-md-8">
+            <h2 class="section-title">Customize Summary Note</h2>
+            <textarea id="summary-note" class="summary-note-edit form-control" rows="10" oninput="syncOriginalText()">{{ summary | safe }}</textarea>
+            <div class="button-group mt-3">
+                <button id="save-pdf" class="btn btn-success shadow-sm ms-2">Save as PDF</button>
+            </div>
+        </div>
+
+        <!-- Keyword and Original Text Section -->
+        <div class="col-md-4">
+            <h2 class="section-title">Keyword</h2>
+            <div class="keywords">
+                {% for keyword in keywords_list %}
+                    <button onclick="fetchKeywordInfo('{{ keyword }}')" class="keyword-btn">{{ keyword }}</button>
+                {% endfor %}
+            </div>
+            <div id="keywordSummary" class="keyword-summary mt-3"></div>
+            <h2 class="section-title mt-4">Original Text</h2>
+            <div class="original-text">
+                <p id="original-text">{{ summary | safe }}</p>
+                <div class="button-group mt-3">
+                    <button id="save-pdf" class="btn btn-success shadow-sm ms-2">Save as PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Section -->
+    <div class="chat-section mt-5">
+        <h2 class="section-title">AI Chat</h2>
+        <div id="chatBox" class="chat-box"></div>
+        <div class="chat-input-group">
+            <input type="text" id="userMessage" class="chat-input" placeholder="Ask AI a question">
+            <button id="sendMessage" class="chat-send-btn">Send</button>
+        </div>
+    </div>
+</div>
+
+<!-- Load html2pdf for PDF generation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+<script src="/static/js/app.js"></script>
+{% endblock %}

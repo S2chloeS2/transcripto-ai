@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit {{ summary.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <!-- 수정 가능한 제목 -->
+    <div class="form-group mb-4">
+        <label for="title" class="form-label">Title</label>
+        <input
+            type="text"
+            id="title"
+            name="title"
+            class="form-control"
+            value="{{ summary.title }}"
+            placeholder="Enter a title"
+            required
+        />
+    </div>
+
+    <!-- 수정 가능한 요약 내용 -->
+    <div class="form-group mb-4">
+        <label for="content" class="form-label">Summary Content</label>
+        <textarea
+            id="content"
+            name="content"
+            class="form-control"
+            rows="10"
+            required
+        >{{ summary.content }}</textarea>
+    </div>
+
+    <!-- 키워드 수정 -->
+    <div class="form-group mb-4">
+        <label for="keywords" class="form-label">Keywords</label>
+        <input
+            type="text"
+            id="keywords"
+            name="keywords"
+            class="form-control"
+            value="{{ ', '.join(keywords) }}"
+            placeholder="Enter keywords separated by commas"
+        />
+    </div>
+
+    <!-- AI 대화 기록 -->
+    <div class="chat-section mt-5">
+        <h2 class="section-title">AI Chat</h2>
+        <div id="chatBox" class="chat-box"></div>
+        <div class="chat-input-group">
+            <input type="text" id="userMessage" class="chat-input" placeholder="Ask AI a question">
+            <button onclick="sendMessage()" class="chat-send-btn">Send</button>
+        </div>
+    </div>
+
+    <!-- 저장 버튼 -->
+    <div class="d-flex justify-content-between mt-4">
+        <a href="{{ url_for('review') }}" class="btn btn-secondary">Back to Reviews</a>
+        <button id="save-summary" class="btn btn-primary">Save Changes</button>
+    </div>
+</div>
+
+<!-- 자바스크립트로 변경 내용 저장 -->
+<script>
+document.getElementById("save-summary").addEventListener("click", function (e) {
+    e.preventDefault();
+
+    const title = document.getElementById("title").value;
+    const content = document.getElementById("content").value;
+    const keywords = document.getElementById("keywords").value;
+
+    fetch(window.location.href, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ title, content, keywords, ai_chat: aiChat }),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            alert(data.message); // 성공 메시지 표시
+            window.location.href = "{{ url_for('review') }}"; // 리뷰 페이지로 리디렉션
+        })
+        .catch((error) => console.error("Error saving summary:", error));
+});
+</script>
+{% endblock %}

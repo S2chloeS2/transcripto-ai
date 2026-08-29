@@ -1,0 +1,20 @@
+# Secrets — never commit
+.env
+*.key
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Audio scratch files
+temp_*.wav
+*.wav
+
+# Node
+node_modules/
+
+# macOS
+.DS_Store

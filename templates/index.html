@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to the Notetaking App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Space+Grotesk:wght@400&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #141619;
+            margin: 0;
+            padding: 0;
+            color: white;
+        }
+
+        .banner {
+            position: relative;
+            text-align: center;
+            padding: 100px 20px;
+        }
+
+        .banner .floating-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.15;
+        }
+
+        .banner .circle-1 {
+            width: 200px;
+            height: 200px;
+            background-color: #6c63ff;
+            top: -50px;
+            right: -50px;
+        }
+
+        .banner .circle-2 {
+            width: 300px;
+            height: 300px;
+            background-color: #3f51b5;
+            bottom: -100px;
+            left: -100px;
+        }
+
+        .banner .welcome-content h1 {
+            font-size: 80px;
+            color: #FF3BFF;
+            letter-spacing: 1.6px;
+            margin-bottom: 20px;
+        }
+
+        .banner .welcome-content p {
+            font-size: 18px;
+            line-height: 1.8;
+            color: #E5E5E5;
+        }
+
+        .recording-controls {
+            margin: 50px auto;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .recording-controls button {
+            width: 200px;
+            height: 70px;
+            border-radius: 100px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            font-weight: 400;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .recording-controls #start {
+            background: black;
+            border-color: #FF3BFF;
+            color: white;
+        }
+
+        .recording-controls #start:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 8px 15px rgba(255, 59, 255, 0.4);
+        }
+
+        .recording-controls #stop {
+            background: black;
+            border-color: white;
+            color: white;
+        }
+
+        .recording-controls #stop:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 8px 15px rgba(255, 255, 255, 0.2);
+        }
+
+        .recording-controls #save-pdf {
+            background: #020000;
+            border-color: #FF3BFF;
+            color: #FF3BFF;
+        }
+
+        .recording-controls #save-pdf:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 8px 15px rgba(255, 59, 255, 0.4);
+        }
+
+        .note-display {
+            position: relative;
+            display: block;
+            padding: 40px 60px;
+            width:80%;
+            margin: 20px auto;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+        .waveform {
+            height: 100px;
+            border-radius: 15px;
+            margin: 20px auto;
+            width: 80%;
+            background-color: #222;
+        }
+
+        .summary-btn {
+            display: block;
+            margin: 30px auto;
+            padding: 15px 30px;
+            background: black;
+            border: 2px solid #FF3BFF;
+            border-radius: 100px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 20px;
+            font-weight: 400;
+            color: white;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .summary-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 8px 15px rgba(255, 59, 255, 0.4);
+        }
+
+        /* 추가적인 스타일링 */
+        #chatContainer {
+            margin: 20px auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        #chatBox {
+            height: 200px;
+            overflow-y: scroll;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #fff;
+            color: black;
+            border-radius: 10px;
+        }
+
+        .chat-message {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .user-message .message-bubble {
+            background-color: #dcf8c6;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .ai-message {
+            justify-content: flex-start;
+        }
+
+        .ai-message .message-bubble {
+            background-color: #f1f0f0;
+            padding: 10px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .ai-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        #save-pdf {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #save-pdf:hover {
+            background-color: #45a049;
+        }
+
+        #userMessage {
+            width: calc(100% - 100px);
+            padding: 10px;
+            margin-top: 10px;
+            box-sizing: border-box;
+            border-radius: 5px;
+            border: none;
+        }
+
+        #userMessage:focus {
+            outline: none;
+            border: 2px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <!-- Banner Section -->
+    <section class="banner">
+        <div class="floating-circle circle-1"></div>
+        <div class="floating-circle circle-2"></div>
+        <div class="welcome-content">
+            <h1>TranscriptoAI</h1>
+            <p>Effortlessly capture, transcribe, and organize your thoughts with style and simplicity.</p>
+        </div>
+    </section>
+
+    <!-- Recording Controls Section -->
+    <div class="recording-controls">
+        <button id="start">Start Recording</button>
+        <button id="stop" disabled>Stop Recording</button>
+        <button id="save-pdf">Save as PDF</button>
+    </div>
+
+    <!-- Waveform Display -->
+    <canvas id="waveform" class="waveform"></canvas>
+
+    <!-- Transcript Note Display -->
+    <div id="transcript" class="note-display">Your transcript will appear here...</div>
+
+    <!-- Summary Button -->
+    <button class="summary-btn" onclick="processNext()">Let’s Start to Summary</button>
+
+    <!-- JavaScript Files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

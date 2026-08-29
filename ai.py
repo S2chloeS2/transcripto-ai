@@ -129,10 +129,15 @@ def summarize(transcript, kind="lecture"):
     )
 
     data = json.loads(raw)
+    # Keywords sometimes arrive nested inside the summary object instead of at
+    # the top level. Fall back to that before giving up on them.
+    kw = data.get("keywords")
+    if not kw and isinstance(data.get("summary"), dict):
+        kw = data["summary"].get("keywords")
     return {
         "title": _as_text(data.get("title")) or "Untitled session",
         "summary": _as_markdown(data.get("summary")),
-        "keywords": _as_keywords(data.get("keywords")),
+        "keywords": _as_keywords(kw),
     }
 
 
@@ -168,7 +173,14 @@ def _as_markdown(value, depth=2):
 
         parts = []
         for key, item in value.items():
-            parts.append(f"{'#' * depth} {key}\n{_as_markdown(item, depth + 1)}")
+            # The model sometimes folds the whole response object into the
+            # summary field. Drop the sibling keys so they do not surface as
+            # empty "keywords" / "title" sections in the notes.
+            if key.lower() in {"keywords", "keyword", "title", "tags"}:
+                continue
+            rendered = _as_markdown(item, depth + 1)
+            if rendered.strip():
+                parts.append(f"{'#' * depth} {key}\n{rendered}")
         return "\n\n".join(parts)
 
     return ""

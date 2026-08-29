@@ -23,7 +23,10 @@ MAX_UPLOAD_BYTES = engines.MAX_UPLOAD_BYTES
 def _client():
     key = os.getenv("OPENAI_API_KEY")
     if not key:
-        raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env.")
+        raise RuntimeError(
+            "OPENAI_API_KEY 가 설정되지 않았습니다. .env 에 넣은 뒤 "
+            "check_keys.py 로 확인해보세요."
+        )
     return openai.OpenAI(api_key=key)
 
 

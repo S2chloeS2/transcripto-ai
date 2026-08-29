@@ -231,7 +231,8 @@ def api_import():
         return fail(str(exc))
 
     session_id = db.create_session(
-        title=info["title"], kind=body.get("kind", "lecture"), source="link", source_url=url
+        title=info["title"], kind=body.get("kind", "lecture"), source="link",
+        source_url=url, user_id=auth.current_user()["id"],
     )
     set_job(session_id, state="starting", done=0, total=0, message="Preparing…")
 
@@ -267,7 +268,8 @@ def api_import_file():
 
     title = os.path.splitext(os.path.basename(upload.filename))[0][:120]
     session_id = db.create_session(
-        title=title, kind=request.form.get("kind", "meeting"), source="link"
+        title=title, kind=request.form.get("kind", "meeting"), source="link",
+        user_id=auth.current_user()["id"],
     )
     set_job(session_id, state="starting", done=0, total=0, message="Preparing…")
 

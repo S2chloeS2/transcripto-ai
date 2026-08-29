@@ -12,11 +12,12 @@ import re
 
 import openai
 
-CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
-TRANSCRIBE_MODEL = os.getenv("TRANSCRIBE_MODEL", "whisper-1")
+import engines
 
-# Whisper's own limit is 25 MB per request.
-MAX_UPLOAD_BYTES = 24 * 1024 * 1024
+CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
+
+# Re-exported so callers keep importing one module for limits.
+MAX_UPLOAD_BYTES = engines.MAX_UPLOAD_BYTES
 
 
 def _client():
@@ -34,21 +35,23 @@ def _chat(messages, **kwargs):
 
 # ------------------------------------------------------------- transcription
 
-def transcribe(path, language=None, prompt=None):
-    """Transcribe one audio file.
+def transcribe(path, kind="lecture", diarize=False, prompt=None, language=None):
+    """Transcribe a file and drop Whisper's filler-for-silence.
 
-    `prompt` carries the tail of the previous clip so Whisper keeps names and
-    terminology consistent across chunk boundaries.
+    Returns engines.transcribe's shape with hallucinated segments removed.
     """
-    params = {"model": TRANSCRIBE_MODEL}
-    if language:
-        params["language"] = language
-    if prompt:
-        params["prompt"] = prompt[-400:]
+    result = engines.transcribe(
+        path, kind=kind, diarize=diarize, prompt=prompt, language=language
+    )
+    result["segments"] = [
+        seg for seg in result["segments"] if not _is_hallucination(seg["text"])
+    ]
+    return result
 
-    with open(path, "rb") as fh:
-        text = _client().audio.transcriptions.create(file=fh, **params).text.strip()
-    return "" if _is_hallucination(text) else text
+
+def transcribe_text(path, prompt=None, **kwargs):
+    """Convenience wrapper for callers that only want the words."""
+    return engines.plain_text(transcribe(path, prompt=prompt, **kwargs))
 
 
 # Whisper invents text when handed silence or music. These are the phrases it
@@ -62,7 +65,7 @@ _HALLUCINATIONS = {
 
 def _is_hallucination(text):
     """True when a clip produced nothing but Whisper's filler for silence."""
-    stripped = text.lower().strip(" .!?,。")
+    stripped = (text or "").lower().strip(" .!?,。")
     if not stripped:
         return True
     if stripped in _HALLUCINATIONS:
@@ -95,7 +98,9 @@ def summarize(transcript, kind="lecture"):
         "worked examples the speaker walked through."
         if kind == "lecture"
         else "Organise by what was decided. Bring out decisions, open questions, "
-        "and anything someone committed to doing."
+        "and anything someone committed to doing. When the transcript is "
+        "labelled with speakers, name who raised each point and who committed "
+        "to each action."
     )
 
     raw = _chat(

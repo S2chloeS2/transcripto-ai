@@ -55,14 +55,64 @@
   <div class="grid-session">
 
     <div class="stack">
+      {% if speakers %}
+      <section class="card card-pad" id="speaker-card">
+        <p class="section-label">발언 비중</p>
+        <div class="speakers" id="speakers">
+          {% for sp in speakers %}
+          <div class="speaker" data-label="{{ sp.label }}">
+            <div class="speaker-id">
+              <span class="speaker-chip sp-{{ loop.index0 % 6 }}">{{ sp.label }}</span>
+              <input class="speaker-name" value="{{ sp.name }}"
+                     data-label="{{ sp.label }}" aria-label="화자 {{ sp.label }} 이름">
+            </div>
+            <span class="speaker-share">{{ sp.share }}%</span>
+            <div class="speaker-track">
+              <div class="speaker-bar sp-{{ loop.index0 % 6 }}" style="width:{{ sp.share }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <p class="hint" style="margin-top:14px;">이름을 눌러 실제 이름으로 바꿀 수 있습니다.</p>
+      </section>
+      {% elif session.kind == 'meeting' and segments %}
+      <section class="card card-pad">
+        <div class="notice">
+          <svg class="notice-icon" width="17" height="17" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>
+          </svg>
+          <div>
+            {% if not engines.assemblyai %}
+            <strong>화자 분리가 꺼져 있습니다.</strong>
+            누가 말했는지 나누려면 <code>ASSEMBLYAI_API_KEY</code>가 필요합니다.
+            지금 쓰는 OpenAI whisper는 화자를 구분하지 못합니다.
+            {% else %}
+            <strong>이 기록에는 화자 정보가 없습니다.</strong>
+            실시간 녹음은 조각마다 따로 처리해서 화자를 이어 붙일 수 없습니다.
+            녹음 파일을 올리거나 링크로 가져오면 화자가 나뉩니다.
+            {% endif %}
+          </div>
+        </div>
+      </section>
+      {% endif %}
+
       <section class="card card-pad">
         <p class="section-label">스크립트</p>
         <div class="transcript" id="transcript">
           {% for seg in segments %}
+          {% if seg.speaker %}
+          <div class="seg-line has-speaker">
+            <span class="seg-time">{{ '%d:%02d'|format((seg.start_ms or 0)//60000, ((seg.start_ms or 0)//1000)%60) }}</span>
+            <span class="seg-speaker sp-{{ speaker_order.get(seg.speaker, 0) % 6 }}">{{ seg.speaker }}</span>
+            <span class="seg-text">{{ seg.text }}</span>
+          </div>
+          {% else %}
           <div class="seg-line">
             <span class="seg-time">{{ seg.created_at[11:16] }}</span>
             <span class="seg-text">{{ seg.text }}</span>
           </div>
+          {% endif %}
           {% endfor %}
         </div>
         {% if not segments %}

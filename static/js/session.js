@@ -284,3 +284,20 @@ document.getElementById('export').addEventListener('click', () => {
   a.click();
   URL.revokeObjectURL(url);
 });
+
+// ------------------------------------------------------------------ speakers
+
+// Renaming a speaker is a per-session label, so it saves as you type.
+document.querySelectorAll('.speaker-name').forEach((input) => {
+  let timer;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      api(`/api/sessions/${sessionId}/speakers`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: input.dataset.label, name: input.value.trim() }),
+      }).catch((err) => toast(err.message, 'bad'));
+    }, 700);
+  });
+});

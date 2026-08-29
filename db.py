@@ -12,7 +12,18 @@ from datetime import datetime, timezone
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "transcripto.db"))
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    google_sub  TEXT    NOT NULL UNIQUE,   -- Google's stable user id
+    email       TEXT    NOT NULL,
+    name        TEXT,
+    picture     TEXT,
+    created_at  TEXT    NOT NULL,
+    last_seen   TEXT    NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
+    user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT    NOT NULL DEFAULT 'Untitled session',
     kind        TEXT    NOT NULL DEFAULT 'lecture',   -- lecture | meeting
@@ -49,6 +60,12 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT    NOT NULL
 );
 
+"""
+
+# Indexes run after the migrations below, because an index cannot reference a
+# column that an older database has not been given yet.
+INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_segments_session ON segments(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 """
@@ -69,6 +86,10 @@ def init():
     with connect() as conn:
         conn.executescript(SCHEMA)
         # Older databases predate the diarization columns; add what is missing.
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
+        if "user_id" not in cols:
+            conn.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)")
+
         existing = {row["name"] for row in conn.execute("PRAGMA table_info(segments)")}
         for column, decl in (
             ("speaker", "TEXT"),
@@ -78,33 +99,44 @@ def init():
             if column not in existing:
                 conn.execute(f"ALTER TABLE segments ADD COLUMN {column} {decl}")
 
+        conn.executescript(INDEXES)
+
 
 # ---------------------------------------------------------------- sessions
 
-def create_session(title, kind="lecture", source="mic", source_url=None):
+def create_session(title, kind="lecture", source="mic", source_url=None, user_id=None):
     ts = now()
     with connect() as conn:
         cur = conn.execute(
-            "INSERT INTO sessions (title, kind, source, source_url, created_at, updated_at)"
-            " VALUES (?,?,?,?,?,?)",
-            (title, kind, source, source_url, ts, ts),
+            "INSERT INTO sessions (title, kind, source, source_url, created_at, updated_at, user_id)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (title, kind, source, source_url, ts, ts, user_id),
         )
         return cur.lastrowid
 
 
-def get_session(session_id):
+def get_session(session_id, user_id=None):
+    """Fetch a session. With `user_id`, only that user's own session is
+    returned — everyone else gets None, which the app turns into a 404 so a
+    stranger cannot even learn that the session exists."""
     with connect() as conn:
-        row = conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+        if user_id is None:
+            row = conn.execute("SELECT * FROM sessions WHERE id=?", (session_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM sessions WHERE id=? AND user_id=?", (session_id, user_id)
+            ).fetchone()
         return dict(row) if row else None
 
 
-def list_sessions():
+def list_sessions(user_id):
     with connect() as conn:
         rows = conn.execute(
             "SELECT s.*, ("
             "  SELECT COUNT(*) FROM segments g WHERE g.session_id = s.id"
             ") AS segment_count"
-            " FROM sessions s ORDER BY s.created_at DESC"
+            " FROM sessions s WHERE s.user_id = ? ORDER BY s.created_at DESC",
+            (user_id,),
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -253,3 +285,55 @@ def speaker_stats(session_id):
         }
         for label, ms in sorted(totals.items(), key=lambda kv: -kv[1])
     ]
+
+
+# ------------------------------------------------------------------- users
+
+def upsert_user(google_sub, email, name=None, picture=None):
+    """Create the user on first sign-in, refresh their profile after that."""
+    ts = now()
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO users (google_sub, email, name, picture, created_at, last_seen)"
+            " VALUES (?,?,?,?,?,?)"
+            " ON CONFLICT(google_sub) DO UPDATE SET"
+            "   email=excluded.email, name=excluded.name,"
+            "   picture=excluded.picture, last_seen=excluded.last_seen",
+            (google_sub, email, name, picture, ts, ts),
+        )
+        row = conn.execute(
+            "SELECT * FROM users WHERE google_sub=?", (google_sub,)
+        ).fetchone()
+        return dict(row)
+
+
+def get_user(user_id):
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def claim_orphan_sessions(user_id):
+    """Adopt sessions recorded before sign-in existed.
+
+    Without this, everything created while the app had no accounts would become
+    unreachable the moment login is switched on.
+    """
+    with connect() as conn:
+        cur = conn.execute(
+            "UPDATE sessions SET user_id=? WHERE user_id IS NULL", (user_id,)
+        )
+        return cur.rowcount
+
+
+def usage_minutes(user_id, since=None):
+    """Minutes of audio transcribed, for enforcing plan limits later."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(g.end_ms - g.start_ms), 0) AS ms"
+            " FROM segments g JOIN sessions s ON s.id = g.session_id"
+            " WHERE s.user_id = ? AND g.start_ms IS NOT NULL"
+            + (" AND g.created_at >= ?" if since else ""),
+            (user_id, since) if since else (user_id,),
+        ).fetchone()
+        return round((row["ms"] or 0) / 60000, 1)

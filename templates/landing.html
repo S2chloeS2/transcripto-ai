@@ -13,7 +13,7 @@
         그리고 <strong>그 자리에서 나온 말에 대해서만</strong> 답합니다.
       </p>
       <div class="lp-cta">
-        <a class="btn btn-primary btn-lg" href="{{ url_for('new_session') }}">무료로 시작하기</a>
+        <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">무료로 시작하기</a>
         <a class="btn btn-ghost btn-lg" href="#how">어떻게 되나요?</a>
       </div>
       <p class="lp-cta-note">카드 등록 없이 월 5시간 · 설치할 것 없음</p>
@@ -220,7 +220,7 @@
           <li>요약 · 키워드 · AI 챗</li>
           <li>기록 30일 보관</li>
         </ul>
-        <a class="btn btn-ghost" href="{{ url_for('new_session') }}">시작하기</a>
+        <a class="btn btn-ghost" href="{{ url_for('auth.login') }}">시작하기</a>
       </div>
 
       <div class="lp-price is-featured">
@@ -234,7 +234,7 @@
           <li>회의 화자 분리</li>
           <li>마크다운 내보내기</li>
         </ul>
-        <a class="btn btn-primary" href="{{ url_for('new_session') }}">무료로 먼저 써보기</a>
+        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">무료로 먼저 써보기</a>
       </div>
 
       <div class="lp-price">
@@ -246,7 +246,7 @@
           <li>긴 회의 우선 처리</li>
           <li>개인정보 자동 가리기</li>
         </ul>
-        <a class="btn btn-ghost" href="{{ url_for('new_session') }}">시작하기</a>
+        <a class="btn btn-ghost" href="{{ url_for('auth.login') }}">시작하기</a>
       </div>
     </div>
   </section>
@@ -257,7 +257,7 @@
   <section class="lp-close">
     <h2>다음 수업부터,<br>받아적지 마세요</h2>
     <p>듣는 데만 집중하세요. 노트는 끝날 때 이미 완성돼 있습니다.</p>
-    <a class="btn btn-primary btn-lg" href="{{ url_for('new_session') }}">무료로 시작하기</a>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">무료로 시작하기</a>
   </section>
 
   <div class="lp-foot">

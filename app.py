@@ -22,17 +22,35 @@ from flask import Flask, jsonify, render_template, request, url_for
 load_dotenv()
 
 import ai
+import auth
 import db
 import engines
 import media
 
 app = Flask(__name__, static_url_path="/static")
 
+# Signs the session cookie. A fixed value in .env keeps people logged in across
+# restarts; without one we generate a throwaway and everyone is signed out.
+app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production",
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
+)
+
 # Reject oversized bodies before Werkzeug reads them into memory or onto disk.
 # Long recordings arrive as uploads, so this is generous — but not unbounded.
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
 
 db.init()
+auth.init_app(app)
+
+
+@app.context_processor
+def inject_user():
+    """Every template can show who is signed in."""
+    return {"current_user": auth.current_user()}
 
 # Progress for link imports, keyed by session id. In-process is fine: a failed
 # import is cheap to retry, and the transcript itself is already in SQLite.
@@ -54,6 +72,18 @@ def fail(message, code=400):
     return jsonify({"error": message}), code
 
 
+def owned(session_id):
+    """The session, but only if it belongs to whoever is asking.
+
+    Returns None for someone else's session as well as for one that does not
+    exist, so a stranger cannot tell the two apart.
+    """
+    user = auth.current_user()
+    if not user:
+        return None
+    return db.get_session(session_id, user_id=user["id"])
+
+
 def _keywords_of(session):
     try:
         return json.loads(session.get("keywords") or "[]")
@@ -69,13 +99,15 @@ def landing():
 
 
 @app.route("/new")
+@auth.login_required
 def new_session():
     return render_template("new.html")
 
 
 @app.route("/session/<int:session_id>")
+@auth.login_required
 def session_view(session_id):
-    session = db.get_session(session_id)
+    session = db.get_session(session_id, user_id=auth.current_user()["id"])
     if not session:
         return render_template("missing.html", session_id=session_id), 404
     speakers = db.speaker_stats(session_id)
@@ -93,13 +125,17 @@ def session_view(session_id):
 
 
 @app.route("/review")
+@auth.login_required
 def review():
-    return render_template("review.html", sessions=db.list_sessions())
+    return render_template(
+        "review.html", sessions=db.list_sessions(auth.current_user()["id"])
+    )
 
 
 # ------------------------------------------------------------------ sessions
 
 @app.route("/api/sessions", methods=["POST"])
+@auth.login_required
 def api_create_session():
     body = request.get_json(silent=True) or {}
     source = body.get("source", "mic")
@@ -108,13 +144,16 @@ def api_create_session():
 
     kind = body.get("kind", "lecture")
     title = (body.get("title") or "").strip() or ("Meeting" if kind == "meeting" else "Lecture")
-    session_id = db.create_session(title=title, kind=kind, source=source)
+    session_id = db.create_session(
+        title=title, kind=kind, source=source, user_id=auth.current_user()["id"]
+    )
     return jsonify({"id": session_id, "url": url_for("session_view", session_id=session_id)})
 
 
 @app.route("/api/sessions/<int:session_id>", methods=["PATCH", "DELETE"])
+@auth.login_required
 def api_modify_session(session_id):
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
 
     if request.method == "DELETE":
@@ -132,9 +171,10 @@ def api_modify_session(session_id):
 # ------------------------------------------------------------- transcription
 
 @app.route("/api/sessions/<int:session_id>/transcribe", methods=["POST"])
+@auth.login_required
 def api_transcribe(session_id):
     """Accept one audio clip from the browser and return its text."""
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
 
     clip = request.files.get("file")
@@ -177,6 +217,7 @@ def api_transcribe(session_id):
 # --------------------------------------------------------------- link import
 
 @app.route("/api/import", methods=["POST"])
+@auth.login_required
 def api_import():
     """Start fetching a URL in the background; returns a session to watch."""
     body = request.get_json(silent=True) or {}
@@ -207,6 +248,7 @@ def api_import():
 
 
 @app.route("/api/import/file", methods=["POST"])
+@auth.login_required
 def api_import_file():
     """Accept a recording — a Zoom/Teams local recording, a voice memo, anything
     ffmpeg can decode — and run it through the same pipeline as a link."""
@@ -297,13 +339,15 @@ def _run_pipeline(session_id, path, workdir):
 
 
 @app.route("/api/sessions/<int:session_id>/progress")
+@auth.login_required
 def api_progress(session_id):
+    # Ownership first: progress leaks a session's title and state otherwise.
+    session = owned(session_id)
+    if not session:
+        return fail("기록을 찾을 수 없습니다.", 404)
     job = get_job(session_id)
     if job:
         return jsonify(job)
-    session = db.get_session(session_id)
-    if not session:
-        return fail("No such session.", 404)
     return jsonify({"state": "done" if session.get("summary") else "idle"})
 
 
@@ -326,8 +370,9 @@ def _build_summary(session_id):
 
 
 @app.route("/api/sessions/<int:session_id>/summary", methods=["POST"])
+@auth.login_required
 def api_summary(session_id):
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
     try:
         _build_summary(session_id)
@@ -346,10 +391,13 @@ def api_summary(session_id):
 
 
 @app.route("/api/sessions/<int:session_id>/keyword")
+@auth.login_required
 def api_keyword(session_id):
+    if not owned(session_id):
+        return fail("기록을 찾을 수 없습니다.", 404)
     keyword = (request.args.get("q") or "").strip()
     if not keyword:
-        return fail("No keyword given.")
+        return fail("키워드를 지정해주세요.")
     transcript = db.get_transcript(session_id)
     if not transcript:
         return fail("There is nothing transcribed in this session yet.")
@@ -366,8 +414,9 @@ def api_keyword(session_id):
 # ---------------------------------------------------------------------- chat
 
 @app.route("/api/sessions/<int:session_id>/chat", methods=["POST"])
+@auth.login_required
 def api_chat(session_id):
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
 
     question = ((request.get_json(silent=True) or {}).get("message") or "").strip()
@@ -387,9 +436,10 @@ def api_chat(session_id):
 
 
 @app.route("/api/sessions/<int:session_id>/speakers", methods=["GET", "PATCH"])
+@auth.login_required
 def api_speakers(session_id):
     """Read talk-time per speaker, or rename one."""
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
 
     if request.method == "PATCH":
@@ -405,8 +455,9 @@ def api_speakers(session_id):
 
 
 @app.route("/api/sessions/<int:session_id>/transcript")
+@auth.login_required
 def api_transcript(session_id):
-    if not db.get_session(session_id):
+    if not owned(session_id):
         return fail("No such session.", 404)
     return jsonify({"segments": db.get_segments(session_id)})
 

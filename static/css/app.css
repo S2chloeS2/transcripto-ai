@@ -388,3 +388,49 @@ a:hover { text-decoration: underline; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
+
+/* ------------------------------------------------------- speaker timeline */
+
+.speakers{display:grid;gap:14px;}
+.speaker{display:grid;grid-template-columns:1fr auto;gap:10px 14px;align-items:center;}
+.speaker-id{display:flex;align-items:center;gap:9px;min-width:0;}
+.speaker-chip{
+  width:26px;height:26px;border-radius:50%;flex:none;
+  display:grid;place-items:center;font-size:11.5px;font-weight:650;color:#fff;
+}
+.speaker-name{
+  font-size:14.5px;font-weight:550;color:var(--ink);
+  border:none;background:transparent;font-family:inherit;padding:3px 6px;
+  margin-left:-6px;border-radius:6px;min-width:0;max-width:22ch;
+}
+.speaker-name:hover{background:var(--sunk);}
+.speaker-share{
+  font-size:13.5px;color:var(--ink-mute);font-variant-numeric:tabular-nums;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;
+}
+.speaker-track{
+  grid-column:1 / -1;height:7px;border-radius:100px;background:var(--sunk);
+  position:relative;overflow:hidden;
+}
+.speaker-bar{position:absolute;top:0;height:100%;border-radius:100px;}
+
+/* colour per speaker, assigned by index */
+.sp-0{background:#6B4BE8;} .sp-1{background:#C62F5A;}
+.sp-2{background:#1B8A6B;} .sp-3{background:#C77800;}
+.sp-4{background:#2B6CB0;} .sp-5{background:#8B3AAE;}
+
+/* speaker-tagged transcript lines */
+.seg-line.has-speaker{grid-template-columns:52px 26px 1fr;}
+.seg-speaker{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-size:10.5px;font-weight:650;color:#fff;margin-top:2px;
+}
+
+.notice{
+  display:flex;gap:11px;align-items:flex-start;
+  padding:14px 17px;border-radius:var(--radius-sm);
+  background:var(--sunk);border:1px solid var(--rule);
+  font-size:14px;line-height:1.6;color:var(--ink-soft);
+}
+.notice strong{color:var(--ink);}
+.notice-icon{color:var(--ink-mute);flex:none;margin-top:2px;}

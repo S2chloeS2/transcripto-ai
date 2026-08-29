@@ -23,6 +23,7 @@ load_dotenv()
 
 import ai
 import db
+import engines
 import media
 
 app = Flask(__name__, static_url_path="/static")
@@ -77,12 +78,17 @@ def session_view(session_id):
     session = db.get_session(session_id)
     if not session:
         return render_template("missing.html", session_id=session_id), 404
+    speakers = db.speaker_stats(session_id)
     return render_template(
         "session.html",
         session=session,
         segments=db.get_segments(session_id),
         messages=db.get_messages(session_id),
         keywords=_keywords_of(session),
+        speakers=speakers,
+        speaker_order={sp["label"]: i for i, sp in enumerate(speakers)},
+        speaker_names=db.get_speaker_names(session_id),
+        engines=engines.available(),
     )
 
 
@@ -146,8 +152,15 @@ def api_transcribe(session_id):
     try:
         tmp.write(data)
         tmp.close()
-        # Feed back what we have so terminology stays consistent across clips.
-        text = ai.transcribe(tmp.name, prompt=db.get_transcript(session_id))
+        # Live clips are transcribed one at a time for fast feedback, so no
+        # diarization here: speaker A in one clip is not speaker A in the next.
+        # The session can be re-run with diarization once recording stops.
+        session = db.get_session(session_id)
+        text = ai.transcribe_text(
+            tmp.name,
+            kind=session.get("kind", "lecture"),
+            prompt=db.get_transcript(session_id),
+        )
     except Exception as exc:
         app.logger.error("transcribe failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
@@ -246,12 +259,30 @@ def _run_pipeline(session_id, path, workdir):
         chunks = media.split(path, workdir)
         set_job(session_id, total=len(chunks), state="transcribing")
 
+        session = db.get_session(session_id)
+        kind = session.get("kind", "lecture")
+        # Meetings want to know who spoke; lectures are one voice, so we skip
+        # diarization there and use the cheaper engine.
+        diarize = kind == "meeting"
+        offset_ms = 0
+
         for index, chunk in enumerate(chunks, start=1):
             set_job(session_id, done=index - 1,
                     message=f"Transcribing part {index} of {len(chunks)}…")
-            text = ai.transcribe(chunk, prompt=db.get_transcript(session_id))
-            if text:
-                db.add_segment(session_id, text)
+            result = ai.transcribe(
+                chunk, kind=kind, diarize=diarize, prompt=db.get_transcript(session_id)
+            )
+            for seg in result["segments"]:
+                db.add_segment(
+                    session_id,
+                    seg["text"],
+                    speaker=seg.get("speaker"),
+                    start_ms=(seg["start_ms"] + offset_ms) if seg.get("start_ms") is not None else None,
+                    end_ms=(seg["end_ms"] + offset_ms) if seg.get("end_ms") is not None else None,
+                )
+            # Chunks are cut at a fixed length, so each one starts that much
+            # further into the recording.
+            offset_ms += media.CHUNK_SECONDS * 1000
 
         set_job(session_id, done=len(chunks), state="summarizing",
                 message="Writing the summary…")
@@ -280,7 +311,8 @@ def api_progress(session_id):
 
 def _build_summary(session_id):
     session = db.get_session(session_id)
-    transcript = db.get_transcript(session_id)
+    # Meetings summarise better when the model knows who said what.
+    transcript = db.get_transcript(session_id, with_speakers=True)
     if not transcript:
         raise ValueError("There is nothing transcribed in this session yet.")
 
@@ -352,6 +384,24 @@ def api_chat(session_id):
     db.add_message(session_id, "user", question)
     db.add_message(session_id, "assistant", reply)
     return jsonify({"reply": reply})
+
+
+@app.route("/api/sessions/<int:session_id>/speakers", methods=["GET", "PATCH"])
+def api_speakers(session_id):
+    """Read talk-time per speaker, or rename one."""
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
+
+    if request.method == "PATCH":
+        body = request.get_json(silent=True) or {}
+        label = (body.get("label") or "").strip()
+        name = (body.get("name") or "").strip()
+        if not label:
+            return fail("어떤 화자인지 지정해주세요.")
+        db.set_speaker_name(session_id, label, name[:60])
+        return jsonify({"ok": True})
+
+    return jsonify({"speakers": db.speaker_stats(session_id)})
 
 
 @app.route("/api/sessions/<int:session_id>/transcript")

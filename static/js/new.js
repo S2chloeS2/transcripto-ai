@@ -23,12 +23,16 @@ document.querySelectorAll('.mode').forEach((btn) => {
   });
 });
 
+const diarNote = document.getElementById('meeting-diar-note');
 document.querySelectorAll('.seg-btn[data-kind]').forEach((btn) => {
   btn.addEventListener('click', () => {
     kind = btn.dataset.kind;
     document.querySelectorAll('.seg-btn[data-kind]').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
     });
+    // Speaker separation only happens on uploaded meetings, so say so the
+    // moment someone picks "미팅" for a live source.
+    if (diarNote) diarNote.style.display = kind === 'meeting' ? '' : 'none';
   });
 });
 

@@ -55,6 +55,18 @@
             <button type="button" class="seg-btn" data-kind="meeting" aria-pressed="false">미팅</button>
           </div>
           <p class="hint">강의는 주제별로, 미팅은 결정사항 중심으로 요약합니다.</p>
+
+          <div id="meeting-diar-note" class="notice" style="margin-top:12px; display:none;">
+            <svg class="notice-icon" width="17" height="17" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 7a3 3 0 1 0 6 0 3 3 0 0 0-6 0M21 21v-2a4 4 0 0 0-3-3.9"/>
+            </svg>
+            <div>
+              <strong>화자 분리(누가 말했는지)는 아래 “녹음 파일 올리기”에서만 됩니다.</strong>
+              실시간 녹음은 소리를 짧게 잘라 처리해서, 조각 사이의 같은 사람을 이어 붙일 수 없습니다.
+              발언자를 나누고 싶다면 회의를 녹음한 뒤 파일로 올려주세요.
+            </div>
+          </div>
         </div>
 
         <div class="field" id="device-field" style="display:none;">
@@ -89,7 +101,10 @@
           <button type="button" class="btn btn-ghost btn-sm" id="pick-file" style="margin-top:14px;">파일 고르기</button>
           <input type="file" id="file-input" accept="audio/*,video/*" class="sr-only">
         </div>
-        <p class="hint">데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.</p>
+        <p class="hint">
+          데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.
+          <br><strong>미팅으로 올리면 발언자를 자동으로 나눠줍니다.</strong>
+        </p>
       </div>
 
       <div id="import-progress" style="display:none; margin-top:18px;">

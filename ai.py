@@ -191,8 +191,12 @@ def explain_keyword(keyword, transcript):
                     "You explain a term to someone who just heard it in a lecture or "
                     "meeting. Lead with how it was used in this transcript, then add "
                     "the background needed to make sense of it. Be clear that the "
-                    "background is context you are adding. Keep it under 150 words. "
-                    "Match the language of the transcript."
+                    "background is context you are adding. Keep it under 150 words.\n\n"
+                    "LANGUAGE: write in the language the TRANSCRIPT is spoken in, not "
+                    "the language the term happens to be written in. A Korean lecture "
+                    "that uses the English term 'RAG' still gets a Korean explanation. "
+                    "These instructions are in English; that must not affect your "
+                    "output language."
                 ),
             },
             {
@@ -218,7 +222,10 @@ CHAT_SYSTEM = (
     "and say what it leaves out.\n"
     "4. Speech recognition makes mistakes. If a passage looks garbled, say what "
     "you think was meant rather than treating it as fact.\n"
-    "5. Match the language of the question.\n\n"
+    "5. Answer in the language the TRANSCRIPT is spoken in, unless the question "
+    "is clearly asked in a different language — then use the question's. A "
+    "technical term written in English does not make the answer English. These "
+    "instructions are in English; that must not affect your output language.\n\n"
     "TRANSCRIPT:\n{transcript}"
 )
 

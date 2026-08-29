@@ -26,6 +26,11 @@ import db
 import media
 
 app = Flask(__name__, static_url_path="/static")
+
+# Reject oversized bodies before Werkzeug reads them into memory or onto disk.
+# Long recordings arrive as uploads, so this is generous — but not unbounded.
+app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
+
 db.init()
 
 # Progress for link imports, keyed by session id. In-process is fine: a failed
@@ -354,6 +359,12 @@ def api_transcript(session_id):
     if not db.get_session(session_id):
         return fail("No such session.", 404)
     return jsonify({"segments": db.get_segments(session_id)})
+
+
+@app.errorhandler(413)
+def too_large(_):
+    limit = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
+    return fail(f"파일이 너무 큽니다. {limit}MB 이하만 올릴 수 있습니다.", 413)
 
 
 @app.errorhandler(404)

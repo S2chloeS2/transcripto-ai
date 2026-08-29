@@ -1,86 +1,103 @@
 # TranscriptoAI
 
-**Capture your ideas, transcribe real-time audio, and organize notes effortlessly.**
+**듣는 동안, 노트는 알아서 완성된다.**
 
-A study companion that records a lecture, transcribes it, summarizes it into
-bullet points, pulls out the key terms, and lets you ask an AI follow-up
-questions about what was just said — then keeps it all for review.
-
-Built for *Designing for Generative AI* (Columbia University, Fall 2024).
+강의든 미팅이든 소리만 넘겨주면 받아적고, 요약하고, 핵심 용어를 풀어줍니다.
+그리고 그 자리에서 나온 말에 대해서**만** 답합니다.
 
 ---
 
-## The idea
+## 무엇을 하는가
 
-**Person** — students and professionals sitting through lectures and meetings.
-
-**Problem** — you cannot listen carefully and take good notes at the same time.
-Notes taken while listening are fragmentary; notes taken afterward are already
-half-forgotten.
-
-**Approach** — let the machine handle capture so the person can handle
-understanding. Audio is transcribed as it comes in, then folded through a
-summarize → extract keywords → ask questions loop.
-
-**Metric** — how much of a session a student can reconstruct afterward, and how
-long it takes them to do it.
-
-## The flow
-
-| Step | What happens |
+| 단계 | 내용 |
 |---|---|
-| **Discover** | Pick a topic to study |
-| **Record** | Mic audio is captured and transcribed in ~5s slices |
-| **Edit Summary** | The transcript is condensed into structured bullets |
-| **Keyword** | Key terms are extracted; click one for an AI explanation |
-| **AI Chat** | Ask questions answered against your own transcript |
-| **Review** | Revisit and revise saved summaries |
+| **듣기** | 컴퓨터 소리, 마이크, 또는 둘 다. 링크·파일도 가능 |
+| **스크립트** | 말이 끝나는 대로 화면에 쌓임 |
+| **요약** | 강의는 주제별로, 미팅은 결정사항 중심으로 |
+| **키워드** | 누르면 그 강의에서 어떻게 쓰였는지부터 설명 |
+| **AI 챗** | 오늘 스크립트 안에서만 답변. 밖의 질문은 모른다고 말함 |
+| **리뷰** | SQLite에 저장되어 나중에 다시 열림 |
 
-## Running it
+## 소리를 받는 다섯 가지 방법
 
-Requires Python 3.9+ and `ffmpeg` (`brew install ffmpeg`).
+### 실시간
+
+| 모드 | 쓰는 때 | 방법 |
+|---|---|---|
+| **컴퓨터 소리** | Zoom 웹, 유튜브, 온라인 강의 | `getDisplayMedia` 탭 오디오 |
+| **방 안의 대화** | 강의실 수업, 대면 미팅 | `getUserMedia` 마이크 |
+| **둘 다 섞기** | 화상 회의 + 현장 참석자 | 두 트랙을 `AudioContext`로 합침 |
+
+컴퓨터 소리를 고르면 공유 창에서 **"Chrome 탭"**을 선택하고 **"탭 오디오도 공유"**를
+켜야 합니다. macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를
+공유하면 소리가 빠집니다.
+
+### 불러오기
+
+| 방식 | 쓰는 때 |
+|---|---|
+| **링크 붙여넣기** | 유튜브 등 공개 영상. 길면 나눠서 처리 |
+| **파일 올리기** | **데스크톱 Zoom·Teams의 로컬 녹음** |
+
+### 데스크톱 Zoom·Teams는 어떻게?
+
+세 가지 길이 있고, 아래로 갈수록 번거롭습니다.
+
+1. **회의를 녹음하고 파일을 올리기** — 가장 확실합니다. 오디오 설정을 전혀
+   건드리지 않습니다. Zoom과 Teams 둘 다 로컬 녹음 기능이 내장돼 있습니다.
+2. **웹 클라이언트를 탭에서 열기** — 실시간이 필요할 때. Teams 웹은 완성도가
+   높고, Zoom 웹은 일부 기능이 빠집니다.
+3. **가상 오디오 장치** — [BlackHole](https://existential.audio/blackhole/)을
+   설치하고 Audio MIDI 설정에서 다중 출력 장치를 만든 뒤, 앱의 입력 장치
+   목록에서 BlackHole을 고릅니다. 되돌리는 걸 잊으면 스피커가 고장난 것처럼
+   보이므로 주의하세요.
+
+## 실행
+
+`ffmpeg`이 필요합니다 (`brew install ffmpeg`).
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env      # then add your real OpenAI key
+cp .env.example .env      # OpenAI 키를 넣으세요
 python app.py
 ```
 
-Open http://127.0.0.1:5001.
+http://127.0.0.1:5001 — 5000이 아닌 이유는 macOS AirPlay가 그 포트를 씁니다.
 
-> Port 5001, not 5000 — macOS runs its AirPlay Receiver on 5000.
+### 설정
 
-### Configuration
-
-| Variable | Default | Purpose |
+| 변수 | 기본값 | 용도 |
 |---|---|---|
-| `OPENAI_API_KEY` | *(required)* | Transcription, summaries, keywords, chat |
-| `PORT` | `5001` | Server port |
-| `TRANSCRIBE_BACKEND` | `api` | `api` for hosted Whisper, `local` for on-device |
-| `WHISPER_MODEL` | `small` | Local model size, when `TRANSCRIBE_BACKEND=local` |
-| `ENABLE_MIC` | *(off)* | Capture from the **server's** mic instead of the browser's |
+| `OPENAI_API_KEY` | *(필수)* | 전사·요약·키워드·챗 전부 |
+| `CHAT_MODEL` | `gpt-4o-mini` | 요약과 챗에 쓰는 모델 |
+| `PORT` | `5001` | 서버 포트 |
+| `DB_PATH` | `./transcripto.db` | SQLite 파일 위치 |
+| `CHUNK_SECONDS` | `600` | 불러온 오디오를 자르는 길이 |
+| `MAX_DURATION` | `14400` | 링크로 받을 수 있는 최대 길이 (4시간) |
 
-Local transcription needs the extra dependencies in `requirements-local.txt`
-(`torch` and friends, several GB). The hosted API is the default because it
-needs no model download and no GPU.
+로컬 Whisper나 `torch`는 필요 없습니다. 전사도 OpenAI가 처리합니다.
 
-## Routes
+## 구조
 
-| Route | Method | Purpose |
-|---|---|---|
-| `/` | GET | Landing page |
-| `/home` | GET | Recording interface |
-| `/transcribe` | POST | Accept an audio chunk, return its transcript |
-| `/summary` | GET | Summarize the session, extract keywords |
-| `/keyword_summary` | GET | Explain a single keyword |
-| `/chat` | POST | Answer a question against the transcript |
-| `/review` | GET | List saved summaries |
-| `/review/<id>` | GET/POST | View or edit one summary |
+```
+app.py                 Flask 라우트와 링크·파일 처리 파이프라인
+ai.py                  OpenAI 호출. 챗을 스크립트 안으로 묶는 프롬프트가 여기 있음
+db.py                  SQLite. 세션 · 스크립트 구간 · 챗 기록
+media.py               yt-dlp 다운로드와 ffmpeg 분할
+static/js/capture.js   세 가지 입력 소스를 하나의 인터페이스로
+```
 
-## Notes on this codebase
+### 알아둘 점
 
-Summaries live in memory and are lost on restart — a database was out of scope
-for the course. The recorder slices audio into standalone ~5s clips rather than
-holding an open stream, which trades a little latency for chunks the server can
-decode independently.
+- **오디오는 6초 단위로 잘라 보냅니다.** 매번 녹음기를 껐다 켜서 각 조각이
+  자기 헤더를 갖게 합니다. 이어붙인 조각은 단독으로 디코딩되지 않기 때문입니다.
+  직전까지의 스크립트를 Whisper에 힌트로 넘겨 용어가 조각 경계에서 흔들리지
+  않게 합니다.
+- **Whisper는 침묵과 음악에 대고 말을 지어냅니다.** "Thank you", "시청해주셔서
+  감사합니다" 같은 상투적 문구가 대표적이라 `ai.py`에서 걸러냅니다.
+- **요약 JSON의 모양이 일정하지 않습니다.** 마크다운 문자열을 요청해도 가끔
+  중첩 객체로 돌아와서, `_as_markdown()`이 어떤 모양이든 마크다운으로 폅니다.
+- **요약은 메모리가 아니라 SQLite에 저장됩니다.** 재시작해도 남습니다.
+
+개발 과정 기록은 `../transcripto-ai-archive`에 있습니다.

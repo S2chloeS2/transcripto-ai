@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ session.title }} — TranscriptoAI{% endblock %}
+
+{% block body %}
+<div class="page" data-session-id="{{ session.id }}" data-source="{{ session.source }}" id="session-root">
+
+  <header class="session-head">
+    <div style="flex:1; min-width:240px;">
+      <input class="session-title" id="session-title" value="{{ session.title }}" aria-label="기록 제목">
+      <div class="session-meta">
+        <span class="tag">{{ '미팅' if session.kind == 'meeting' else '강의' }}</span>
+        <span class="tag" id="source-tag">
+          {% if session.source == 'system' %}컴퓨터 소리
+          {% elif session.source == 'both' %}컴퓨터 + 마이크
+          {% elif session.source == 'link' %}불러온 파일
+          {% else %}마이크{% endif %}
+        </span>
+        <span class="tag" id="live-tag" style="display:none;">
+          <span class="dot-live"></span> 녹음 중
+        </span>
+      </div>
+    </div>
+    <div class="session-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="export">내보내기</button>
+      <button type="button" class="btn btn-primary" id="make-summary">요약 만들기</button>
+    </div>
+  </header>
+
+  {% if session.source != 'link' %}
+  <section class="card capture" style="margin-bottom:20px;">
+    <div class="capture-row">
+      <button type="button" class="btn btn-live" id="start-rec">
+        <span class="dot-live" style="animation:none;"></span> 녹음 시작
+      </button>
+      <button type="button" class="btn btn-ghost" id="stop-rec" disabled>정지</button>
+      <div class="seg" role="group" aria-label="소리 받을 곳" id="source-switch">
+        <button type="button" class="seg-btn" data-source="system" aria-pressed="{{ 'true' if session.source == 'system' else 'false' }}">컴퓨터</button>
+        <button type="button" class="seg-btn" data-source="mic" aria-pressed="{{ 'true' if session.source == 'mic' else 'false' }}">마이크</button>
+        <button type="button" class="seg-btn" data-source="both" aria-pressed="{{ 'true' if session.source == 'both' else 'false' }}">둘 다</button>
+      </div>
+      <span class="capture-status" id="capture-status">준비됨</span>
+    </div>
+    <canvas class="waveform" id="waveform" aria-hidden="true"></canvas>
+  </section>
+  {% else %}
+  <section class="card card-pad" id="import-panel" style="margin-bottom:20px; display:none;">
+    <div style="display:flex; align-items:center; gap:11px;">
+      <span class="spinner"></span>
+      <span class="capture-status" id="import-message">처리 중…</span>
+    </div>
+    <div class="progress-shell"><div class="progress-bar" id="import-bar"></div></div>
+  </section>
+  {% endif %}
+
+  <div class="grid-session">
+
+    <div class="stack">
+      <section class="card card-pad">
+        <p class="section-label">스크립트</p>
+        <div class="transcript" id="transcript">
+          {% for seg in segments %}
+          <div class="seg-line">
+            <span class="seg-time">{{ seg.created_at[11:16] }}</span>
+            <span class="seg-text">{{ seg.text }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if not segments %}
+        <div class="empty" id="transcript-empty">
+          아직 받아적은 내용이 없습니다.<br>녹음을 시작하면 여기에 쌓입니다.
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="card card-pad" id="summary-card" {% if not session.summary %}style="display:none;"{% endif %}>
+        <p class="section-label">요약</p>
+        <div class="summary-body" id="summary-body">{{ session.summary or '' }}</div>
+
+        <div style="margin-top:22px;">
+          <p class="section-label">핵심 용어</p>
+          <div class="keywords" id="keywords">
+            {% for kw in keywords %}
+            <button type="button" class="kw" data-kw="{{ kw }}" aria-expanded="false">{{ kw }}</button>
+            {% endfor %}
+          </div>
+          <div class="kw-panel" id="kw-panel" style="display:none;"></div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="card card-pad">
+      <p class="section-label">AI 챗</p>
+      <p class="hint" style="margin-bottom:14px;">오늘 기록한 내용 안에서만 답합니다. 나오지 않은 내용은 모른다고 말합니다.</p>
+      <div class="chat">
+        <div class="chat-log" id="chat-log">
+          {% for m in messages %}
+          <div class="msg {{ 'msg-user' if m.role == 'user' else '' }}">
+            <span class="msg-role">{{ '나' if m.role == 'user' else 'AI' }}</span>
+            <div class="msg-body">{{ m.content }}</div>
+          </div>
+          {% endfor %}
+          {% if not messages %}
+          <div class="empty" id="chat-empty">스크립트가 쌓이면 질문할 수 있습니다.</div>
+          {% endif %}
+        </div>
+        <form class="chat-form" id="chat-form">
+          <input class="input" id="chat-input" placeholder="오늘 내용에 대해 물어보세요" autocomplete="off">
+          <button type="submit" class="btn btn-primary" id="chat-send">보내기</button>
+        </form>
+      </div>
+    </aside>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/capture.js') }}"></script>
+<script src="{{ url_for('static', filename='js/session.js') }}"></script>
+{% endblock %}

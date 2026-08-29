@@ -4,10 +4,13 @@ Used by the paste-a-link mode. Whisper caps uploads at 25 MB, so anything long
 is split into chunks that are transcribed in order and stitched back together.
 """
 
+import ipaddress
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
+from urllib.parse import urlparse
 
 import yt_dlp
 
@@ -20,8 +23,40 @@ class MediaError(Exception):
     """Something went wrong fetching or splitting the audio."""
 
 
+def assert_public_url(url):
+    """Refuse URLs that resolve to the machine itself or a private network.
+
+    Without this the import feature is a server-side request forgery hole: a
+    link to 169.254.169.254 would hand back cloud instance credentials, and one
+    to an internal host would let a stranger probe the private network.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise MediaError("http 또는 https 주소만 사용할 수 있습니다.")
+    if not parsed.hostname:
+        raise MediaError("주소에서 호스트를 찾을 수 없습니다.")
+
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, parsed.port or 0, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise MediaError(f"주소를 찾을 수 없습니다: {parsed.hostname}") from exc
+
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise MediaError("내부 네트워크 주소는 가져올 수 없습니다.")
+
+
 def probe(url):
     """Read a URL's metadata without downloading it."""
+    assert_public_url(url)
     opts = {"quiet": True, "no_warnings": True, "skip_download": True}
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
@@ -51,6 +86,8 @@ def probe(url):
 
 def download_audio(url, workdir):
     """Download a URL's audio track as mp3. Returns the file path."""
+    # Re-check: DNS could have changed between probe and download.
+    assert_public_url(url)
     template = os.path.join(workdir, "audio.%(ext)s")
     opts = {
         "quiet": True,

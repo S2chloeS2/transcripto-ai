@@ -2,40 +2,268 @@
 {% block title %}TranscriptoAI — 듣는 동안 노트는 완성된다{% endblock %}
 
 {% block body %}
-<div class="page">
-  <section class="hero">
-    <h1>듣는 동안,<br><span class="accent">노트는 알아서 완성된다</span></h1>
-    <p>강의든 미팅이든 소리만 넘겨주면 받아적고, 요약하고, 핵심 용어를 풀어줍니다. 그리고 그 자리에서 나온 말에 대해서만 답합니다.</p>
-    <div class="hero-actions">
-      <a class="btn btn-primary btn-lg" href="{{ url_for('new_session') }}">시작하기</a>
-      <a class="btn btn-ghost btn-lg" href="{{ url_for('review') }}">지난 기록 보기</a>
+
+<!-- ─────────────────────────────────────────────────────────── hero -->
+<div class="lp">
+  <section class="lp-hero">
+    <div>
+      <h1>듣는 동안,<br><span class="accent">노트는 알아서<br>완성된다</span></h1>
+      <p class="lp-hero-sub">
+        강의든 회의든 소리만 넘겨주면 받아적고, 요약하고, 핵심 용어를 풀어줍니다.
+        그리고 <strong>그 자리에서 나온 말에 대해서만</strong> 답합니다.
+      </p>
+      <div class="lp-cta">
+        <a class="btn btn-primary btn-lg" href="{{ url_for('new_session') }}">무료로 시작하기</a>
+        <a class="btn btn-ghost btn-lg" href="#how">어떻게 되나요?</a>
+      </div>
+      <p class="lp-cta-note">카드 등록 없이 월 5시간 · 설치할 것 없음</p>
+    </div>
+
+    <!-- 이 목업이 제품의 핵심 주장을 그대로 보여줍니다 -->
+    <div class="mock" aria-label="AI 챗이 강의에 없는 내용을 거부하는 예시">
+      <div class="mock-bar">
+        <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+        <span class="mock-title">생성형 AI 인터페이스 설계 · 3주차</span>
+      </div>
+      <div class="mock-body">
+        <div class="mock-msg mock-user">
+          <span class="mock-role">나</span>
+          <div class="mock-bubble">그라운딩이 뭐라고 했어?</div>
+        </div>
+        <div class="mock-msg">
+          <span class="mock-role">AI</span>
+          <div class="mock-bubble">
+            모델의 답변을 검증 가능한 원본 문서에 묶는 기법이라고 했습니다.
+            <div class="mock-cite">“그라운딩의 핵심 이점은 사용자가 답변의 근거를 직접 확인할 수 있다는 것입니다.”</div>
+          </div>
+        </div>
+        <div class="mock-msg mock-user">
+          <span class="mock-role">나</span>
+          <div class="mock-bubble">오늘 BERT에 대해 뭐라고 했어?</div>
+        </div>
+        <div class="mock-msg mock-refuse">
+          <span class="mock-role">AI</span>
+          <div class="mock-bubble">그 부분은 오늘 수업에서 다루지 않았습니다.</div>
+        </div>
+      </div>
     </div>
   </section>
+</div>
 
-  <section class="features">
-    <article class="card card-pad feature">
-      <svg class="feature-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>
-      </svg>
-      <h3>어디서 나는 소리든</h3>
-      <p>컴퓨터에서 재생되는 소리, 방 안의 대화, 또는 둘 다. Zoom·유튜브 링크를 붙여넣거나 녹음 파일을 올려도 됩니다.</p>
-    </article>
+<!-- ────────────────────────────────────────────── the differentiator -->
+<div class="lp">
+  <section class="lp-section">
+    <p class="lp-eyebrow">왜 다른가</p>
+    <h2 class="lp-h2">지어내지 않는 것이<br>가장 중요한 기능입니다</h2>
+    <p class="lp-lede">
+      대부분의 AI 노트 앱은 강의에 나오지도 않은 내용을 그럴듯하게 답합니다.
+      편해 보이지만 시험 공부에 쓰면 위험합니다 &mdash; 틀린 것을 확신에 차서 말하기 때문입니다.
+    </p>
 
-    <article class="card card-pad feature">
-      <svg class="feature-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-        <path d="M4 6h16M4 11h16M4 16h9"/>
-      </svg>
-      <h3>그 자리에 맞는 요약</h3>
-      <p>일반적인 지식 요약이 아닙니다. 실제로 나온 말만 근거로, 강의는 주제별로 미팅은 결정사항 중심으로 정리합니다.</p>
-    </article>
+    <div class="lp-grid lp-grid-3">
+      <article class="lp-card">
+        <svg class="lp-card-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M8.5 12l2.4 2.4 4.6-4.8"/>
+        </svg>
+        <h3>근거를 함께 보여줍니다</h3>
+        <p>답변마다 강의에서 실제로 나온 문장을 인용합니다. 맞는지 직접 확인할 수 있습니다.</p>
+      </article>
 
-    <article class="card card-pad feature">
-      <svg class="feature-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-        <path d="M21 12a8 8 0 1 1-3.2-6.4"/><path d="M12 8v4l2.5 2"/>
-      </svg>
-      <h3>모르면 모른다고</h3>
-      <p>AI 챗이 오늘 스크립트 안에서만 답합니다. 다루지 않은 내용을 물으면 지어내지 않고 안 나왔다고 말합니다.</p>
-    </article>
+      <article class="lp-card">
+        <svg class="lp-card-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M9.6 9.6a2.5 2.5 0 0 1 4.4 1.5c0 1.7-2 2.1-2 3.3M12 17.4h.01"/>
+        </svg>
+        <h3>모르면 모른다고 합니다</h3>
+        <p>스크립트에 없는 질문에는 “오늘 다루지 않았습니다”라고 답합니다. 지어내는 대신에요.</p>
+      </article>
+
+      <article class="lp-card">
+        <svg class="lp-card-icon" width="26" height="26" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h9"/>
+        </svg>
+        <h3>그 자리에 맞는 요약</h3>
+        <p>강의는 주제별로, 회의는 결정사항과 담당자 중심으로. 일반적인 지식 요약이 아닙니다.</p>
+      </article>
+    </div>
   </section>
 </div>
+
+<!-- ──────────────────────────────────────────────── capture modes -->
+<div class="lp">
+  <section class="lp-section">
+    <p class="lp-eyebrow">소리를 받는 방법</p>
+    <h2 class="lp-h2">어디서 나는 소리든 괜찮습니다</h2>
+    <p class="lp-lede">강의실이든 화상 회의든, 지나간 유튜브 강의든. 브라우저만 있으면 됩니다.</p>
+
+    <div class="lp-modes">
+      <div class="lp-mode">
+        <span class="lp-mode-tag">실시간</span>
+        <h4>컴퓨터 소리</h4>
+        <p>Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리를 그대로 담습니다.</p>
+      </div>
+      <div class="lp-mode">
+        <span class="lp-mode-tag">실시간</span>
+        <h4>방 안의 대화</h4>
+        <p>강의실 수업, 대면 회의, 인터뷰. 노트북 마이크만 있으면 됩니다.</p>
+      </div>
+      <div class="lp-mode">
+        <span class="lp-mode-tag">실시간</span>
+        <h4>둘 다 섞기</h4>
+        <p>화상 회의에 현장 참석자가 섞여 있을 때. 양쪽을 하나로 담습니다.</p>
+      </div>
+      <div class="lp-mode">
+        <span class="lp-mode-tag">불러오기</span>
+        <h4>링크 붙여넣기</h4>
+        <p>놓친 수업, 공개 강의. 유튜브 주소만 넣으면 정리됩니다.</p>
+      </div>
+      <div class="lp-mode">
+        <span class="lp-mode-tag">불러오기</span>
+        <h4>녹음 파일</h4>
+        <p>Zoom·Teams 로컬 녹음을 끌어다 놓으세요. 설정을 건드릴 필요 없습니다.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ──────────────────────────────────────────────────── how it works -->
+<div class="lp">
+  <section class="lp-section" id="how">
+    <p class="lp-eyebrow">쓰는 순서</p>
+    <h2 class="lp-h2">시작 버튼 하나면 끝입니다</h2>
+    <p class="lp-lede">나머지는 듣는 동안 알아서 쌓입니다. 끝나고 정리할 일이 없습니다.</p>
+
+    <div class="lp-steps">
+      <div class="lp-step">
+        <span class="lp-step-n">01</span>
+        <h4>듣기</h4>
+        <p>소리가 어디서 나는지만 고르면 됩니다. 도중에 바꿔도 됩니다.</p>
+      </div>
+      <div class="lp-step">
+        <span class="lp-step-n">02</span>
+        <h4>자막이 쌓임</h4>
+        <p>말이 끝나는 대로 화면에 올라옵니다. 받아적을 필요가 없습니다.</p>
+      </div>
+      <div class="lp-step">
+        <span class="lp-step-n">03</span>
+        <h4>요약과 용어</h4>
+        <p>주제별로 정리되고, 용어를 누르면 그 강의에서 쓰인 맥락부터 설명합니다.</p>
+      </div>
+      <div class="lp-step">
+        <span class="lp-step-n">04</span>
+        <h4>물어보기</h4>
+        <p>이해 안 된 부분을 그 자리에서 질문합니다. 나중에 다시 열어도 그대로 남아 있습니다.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ────────────────────────────────────────────────────── meetings -->
+<div class="lp">
+  <section class="lp-section">
+    <div class="lp-grid lp-grid-2" style="margin-top:0; align-items:center; gap:52px;">
+      <div>
+        <p class="lp-eyebrow">회의를 위해</p>
+        <h2 class="lp-h2">누가 무엇을 약속했는지</h2>
+        <p class="lp-lede" style="margin-bottom:20px;">
+          회의 기록은 발언자가 빠지면 쓸모가 없습니다. 발언을 사람별로 나누고,
+          누가 얼마나 말했는지 보여줍니다. 이름은 직접 바꿀 수 있습니다.
+        </p>
+        <p class="lp-lede">
+          요약도 달라집니다. <strong>“이대리: 마케팅 예산 20% 증가 요청”</strong>처럼
+          결정과 담당자를 짚어 정리합니다.
+        </p>
+      </div>
+
+      <div class="lp-card">
+        <p class="section-label">발언 비중</p>
+        <div class="lp-speakers">
+          <div class="lp-sp">
+            <div class="lp-sp-id"><span class="speaker-chip sp-0">B</span> 이대리</div>
+            <span class="lp-sp-share">52%</span>
+            <div class="lp-sp-track"><div class="lp-sp-bar sp-0" style="width:52%"></div></div>
+          </div>
+          <div class="lp-sp">
+            <div class="lp-sp-id"><span class="speaker-chip sp-1">A</span> 김팀장</div>
+            <span class="lp-sp-share">27%</span>
+            <div class="lp-sp-track"><div class="lp-sp-bar sp-1" style="width:27%"></div></div>
+          </div>
+          <div class="lp-sp">
+            <div class="lp-sp-id"><span class="speaker-chip sp-2">C</span> 박연구원</div>
+            <span class="lp-sp-share">21%</span>
+            <div class="lp-sp-track"><div class="lp-sp-bar sp-2" style="width:21%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ──────────────────────────────────────────────────────── pricing -->
+<div class="lp">
+  <section class="lp-section">
+    <div class="lp-center">
+      <p class="lp-eyebrow">요금</p>
+      <h2 class="lp-h2">학생이 직접 낼 수 있는 값</h2>
+      <p class="lp-lede">회사가 대신 내주는 가격이 아닙니다. 언제든 해지할 수 있습니다.</p>
+    </div>
+
+    <div class="lp-prices">
+      <div class="lp-price">
+        <h3>무료</h3>
+        <div class="lp-price-amount">0<small>원</small></div>
+        <p class="lp-price-hours">월 5시간</p>
+        <ul>
+          <li>모든 입력 방식</li>
+          <li>요약 · 키워드 · AI 챗</li>
+          <li>기록 30일 보관</li>
+        </ul>
+        <a class="btn btn-ghost" href="{{ url_for('new_session') }}">시작하기</a>
+      </div>
+
+      <div class="lp-price is-featured">
+        <span class="lp-price-flag">가장 많이 씁니다</span>
+        <h3>스탠다드</h3>
+        <div class="lp-price-amount">11,900<small>원 / 월</small></div>
+        <p class="lp-price-hours">월 25시간</p>
+        <ul>
+          <li>무료의 모든 기능</li>
+          <li>기록 무제한 보관</li>
+          <li>회의 화자 분리</li>
+          <li>마크다운 내보내기</li>
+        </ul>
+        <a class="btn btn-primary" href="{{ url_for('new_session') }}">무료로 먼저 써보기</a>
+      </div>
+
+      <div class="lp-price">
+        <h3>프로</h3>
+        <div class="lp-price-amount">24,900<small>원 / 월</small></div>
+        <p class="lp-price-hours">월 60시간</p>
+        <ul>
+          <li>스탠다드의 모든 기능</li>
+          <li>긴 회의 우선 처리</li>
+          <li>개인정보 자동 가리기</li>
+        </ul>
+        <a class="btn btn-ghost" href="{{ url_for('new_session') }}">시작하기</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── close -->
+<div class="lp">
+  <section class="lp-close">
+    <h2>다음 수업부터,<br>받아적지 마세요</h2>
+    <p>듣는 데만 집중하세요. 노트는 끝날 때 이미 완성돼 있습니다.</p>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('new_session') }}">무료로 시작하기</a>
+  </section>
+
+  <div class="lp-foot">
+    <span>TranscriptoAI</span>
+    <span>녹음은 전사 직후 삭제됩니다 &middot; 회의 녹음 시 참석자 동의를 확인하세요</span>
+  </div>
+</div>
+
 {% endblock %}

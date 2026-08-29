@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TranscriptoAI{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;550;600;650;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="{{ url_for('landing') }}">
+      <span class="brand-dot"></span> TranscriptoAI
+    </a>
+    <div class="nav-links">
+      <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">새 기록</a>
+      <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">지난 기록</a>
+    </div>
+  </nav>
+
+  {% block body %}{% endblock %}
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

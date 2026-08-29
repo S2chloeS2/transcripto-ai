@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% set active = 'new' %}
+{% block title %}새 기록 시작 — TranscriptoAI{% endblock %}
+
+{% block body %}
+<div class="page page-narrow">
+  <div class="page-head">
+    <h1>무엇을 기록할까요?</h1>
+    <p>소리가 어디서 나오는지 고르면 됩니다. 시작한 뒤에도 바꿀 수 있습니다.</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="card card-pad">
+      <p class="section-label">지금 바로 듣기</p>
+      <div class="modes" role="group" aria-label="소리를 받을 곳">
+
+        <button type="button" class="mode" data-source="system" aria-pressed="false">
+          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+            <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+          <div class="mode-name">컴퓨터 소리</div>
+          <p class="mode-desc">Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리만 담고 내 목소리는 담기지 않습니다.</p>
+        </button>
+
+        <button type="button" class="mode" data-source="mic" aria-pressed="true">
+          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+            <rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/>
+          </svg>
+          <div class="mode-name">방 안의 대화</div>
+          <p class="mode-desc">강의실 수업, 대면 미팅, 인터뷰. 노트북 마이크로 주변 소리를 담습니다.</p>
+        </button>
+
+        <button type="button" class="mode" data-source="both" aria-pressed="false">
+          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+            <path d="M7 8v8M12 4v16M17 8v8M2.5 11v2M21.5 11v2"/>
+          </svg>
+          <div class="mode-name">둘 다 섞기</div>
+          <p class="mode-desc">화상 회의에 현장 사람들이 섞여 있을 때. 화면 속 목소리와 옆자리 발언을 함께 담습니다.</p>
+        </button>
+
+      </div>
+
+      <div id="system-help" class="hint" style="margin-top:16px; display:none;">
+        <strong>공유 창이 뜨면 “Chrome 탭”을 고르고, 아래 “탭 오디오도 공유”를 꼭 켜주세요.</strong>
+        macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를 공유하면 소리가 빠집니다.
+        데스크톱 Zoom·Teams 앱을 쓴다면 회의를 녹음한 뒤 아래에서 파일로 올리는 쪽이 확실합니다.
+      </div>
+
+      <div style="margin-top:22px; display:grid; gap:16px;">
+        <div class="field">
+          <span class="field-label">어떤 자리인가요?</span>
+          <div class="seg" role="group" aria-label="기록 종류">
+            <button type="button" class="seg-btn" data-kind="lecture" aria-pressed="true">강의</button>
+            <button type="button" class="seg-btn" data-kind="meeting" aria-pressed="false">미팅</button>
+          </div>
+          <p class="hint">강의는 주제별로, 미팅은 결정사항 중심으로 요약합니다.</p>
+        </div>
+
+        <div class="field" id="device-field" style="display:none;">
+          <label class="field-label" for="device">입력 장치</label>
+          <select class="select" id="device"></select>
+          <p class="hint">BlackHole 같은 가상 오디오 장치를 설치했다면 여기서 고르세요. 데스크톱 Zoom·Teams 소리를 직접 받을 수 있습니다.</p>
+        </div>
+
+        <div>
+          <button type="button" class="btn btn-primary btn-lg" id="start-session">기록 시작</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card card-pad">
+      <p class="section-label">이미 있는 것 불러오기</p>
+
+      <div class="field" style="margin-bottom:20px;">
+        <label class="field-label" for="link-url">링크 붙여넣기</label>
+        <div style="display:flex; gap:9px; flex-wrap:wrap;">
+          <input class="input" id="link-url" type="url" placeholder="https://www.youtube.com/watch?v=…" style="flex:1; min-width:240px;">
+          <button type="button" class="btn btn-ghost" id="import-link">가져오기</button>
+        </div>
+        <p class="hint">유튜브 등 공개 영상의 소리만 받아와 정리합니다. 긴 영상은 나눠서 처리하므로 시간이 걸립니다.</p>
+      </div>
+
+      <div class="field">
+        <span class="field-label">녹음 파일 올리기</span>
+        <div class="dropzone" id="dropzone">
+          <p class="dropzone-title">여기로 파일을 끌어다 놓으세요</p>
+          <p class="dropzone-hint">m4a, mp3, wav, mp4 &middot; Zoom·Teams의 로컬 녹음 파일이 여기 해당합니다</p>
+          <button type="button" class="btn btn-ghost btn-sm" id="pick-file" style="margin-top:14px;">파일 고르기</button>
+          <input type="file" id="file-input" accept="audio/*,video/*" class="sr-only">
+        </div>
+        <p class="hint">데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.</p>
+      </div>
+
+      <div id="import-progress" style="display:none; margin-top:18px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="spinner"></span>
+          <span class="capture-status" id="import-message">준비 중…</span>
+        </div>
+        <div class="progress-shell"><div class="progress-bar" id="import-bar"></div></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/capture.js') }}"></script>
+<script src="{{ url_for('static', filename='js/new.js') }}"></script>
+{% endblock %}

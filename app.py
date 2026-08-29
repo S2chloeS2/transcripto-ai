@@ -1,442 +1,368 @@
-from flask import Flask, request, jsonify, render_template
-import openai
+"""TranscriptoAI — capture a lecture or meeting, and turn it into notes.
+
+Three ways in:
+  system — audio playing on this computer (Zoom, YouTube, any tab)
+  mic    — the room, via the microphone
+  link   — paste a URL and let the server fetch it
+
+Everything is scoped to a session, and sessions are stored in SQLite so the
+review screen still has something in it tomorrow.
+"""
+
+import json
 import os
-import time
-from dotenv import load_dotenv
-import subprocess
+import shutil
 import tempfile
-from datetime import datetime, timedelta
 import threading
+import traceback
 
-# Heavy, optional dependencies for local real-time transcription.
-# The web app boots without them; only the mic-capture thread needs them.
-try:
-    import numpy as np
-    import speech_recognition as sr
-    import whisper
-    import torch
-    STT_AVAILABLE = True
-    STT_IMPORT_ERROR = None
-except ImportError as _e:  # pragma: no cover
-    np = sr = whisper = torch = None
-    STT_AVAILABLE = False
-    STT_IMPORT_ERROR = _e
-from queue import Queue
-from time import sleep
-import argparse
-from sys import platform
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request, url_for
 
-app = Flask(__name__, static_url_path='/static')
-
-# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize global variables
-saved_files = []  # List of saved audio files
-saved_summaries = []  # List to store all generated summaries
-transcriptions = []  # Store all transcription text
+import ai
+import db
+import media
 
-# Initialize queue for audio data
-data_queue = Queue()
+app = Flask(__name__, static_url_path="/static")
+db.init()
 
-# Initialize lock for thread-safe operations
-transcriptions_lock = threading.Lock()
+# Progress for link imports, keyed by session id. In-process is fine: a failed
+# import is cheap to retry, and the transcript itself is already in SQLite.
+_jobs = {}
+_jobs_lock = threading.Lock()
 
 
-def check_ffmpeg():
+def set_job(session_id, **fields):
+    with _jobs_lock:
+        _jobs.setdefault(session_id, {}).update(fields)
+
+
+def get_job(session_id):
+    with _jobs_lock:
+        return dict(_jobs.get(session_id, {}))
+
+
+def fail(message, code=400):
+    return jsonify({"error": message}), code
+
+
+def _keywords_of(session):
     try:
-        subprocess.run(["ffmpeg", "-version"], check=True)
-        subprocess.run(["ffprobe", "-version"], check=True)
-        print("ffmpeg and ffprobe are properly installed.")
-    except subprocess.CalledProcessError:
-        print("ffmpeg or ffprobe is not properly installed.")
-    except FileNotFoundError:
-        print("ffmpeg or ffprobe could not be found in the system path.")
+        return json.loads(session.get("keywords") or "[]")
+    except (ValueError, TypeError):
+        return []
 
 
-check_ffmpeg()
-
-# Environment Setup
-os.environ["PATH"] += os.pathsep + "/opt/homebrew/bin"
-
-# Whisper is loaded lazily so the web server starts instantly.
-# Override the size with WHISPER_MODEL=tiny|base|small|medium|large
-MODEL_NAME = os.getenv("WHISPER_MODEL", "small")
-whisper_model = None
-_whisper_lock = threading.Lock()
-
-
-def get_whisper_model():
-    """Load the Whisper model on first use, then reuse it."""
-    global whisper_model
-    if whisper_model is None:
-        with _whisper_lock:
-            if whisper_model is None:
-                print(f"Loading Whisper model '{MODEL_NAME}'...")
-                whisper_model = whisper.load_model(MODEL_NAME)
-                print(f"Whisper model '{MODEL_NAME}' loaded successfully.")
-    return whisper_model
-
-
-def real_time_transcription():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="medium", help="Model to use",
-                        choices=["tiny", "base", "small", "medium", "large"])
-    parser.add_argument("--non_english", action='store_true',
-                        help="Don't use the english model.")
-    parser.add_argument("--energy_threshold", default=1000,
-                        help="Energy level for mic to detect.", type=int)
-    parser.add_argument("--record_timeout", default=2,
-                        help="How real time the recording is in seconds.", type=float)
-    parser.add_argument("--phrase_timeout", default=3,
-                        help="How much empty space between recordings before we "
-                             "consider it a new line in the transcription.", type=float)
-    parser.add_argument("--default_microphone", default='pulse',
-                        help="Default microphone name for SpeechRecognition. "
-                             "Run this with 'list' to view available Microphones.", type=str)
-    args = parser.parse_args(args=[])
-
-    # The last time a recording was retrieved from the queue.
-    phrase_time = None
-
-    # We use SpeechRecognizer to record our audio because it has a nice feature where it can detect when speech ends.
-    recorder = sr.Recognizer()
-    recorder.energy_threshold = args.energy_threshold
-    # Definitely do this, dynamic energy compensation lowers the energy threshold dramatically to a point where the SpeechRecognizer never stops recording.
-    recorder.dynamic_energy_threshold = False
-
-    # Important for linux users.
-    # Prevents permanent application hang and crash by using the wrong Microphone
-    if 'linux' in platform:
-        mic_name = args.default_microphone
-        if not mic_name or mic_name == 'list':
-            print("Available microphone devices are: ")
-            for index, name in enumerate(sr.Microphone.list_microphone_names()):
-                print(f"Microphone with name \"{name}\" found")
-            return
-        else:
-            for index, name in enumerate(sr.Microphone.list_microphone_names()):
-                if mic_name in name:
-                    source = sr.Microphone(sample_rate=16000, device_index=index)
-                    break
-    else:
-        source = sr.Microphone(sample_rate=16000)
-
-    record_timeout = args.record_timeout
-    phrase_timeout = args.phrase_timeout
-
-    transcription = ['']
-
-    with source:
-        recorder.adjust_for_ambient_noise(source)
-
-    def record_callback(_, audio: sr.AudioData) -> None:
-        """
-        Threaded callback function to receive audio data when recordings finish.
-        audio: An AudioData containing the recorded bytes.
-        """
-        # Grab the raw bytes and push it into the thread safe queue.
-        data = audio.get_raw_data()
-        data_queue.put(data)
-
-    # Create a background thread that will pass us raw audio bytes.
-    # We could do this manually but SpeechRecognizer provides a nice helper.
-    recorder.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
-
-    # Cue the user that we're ready to go.
-    print("Real-time transcription thread started.\n")
-
-    while True:
-        try:
-            now = datetime.utcnow()
-            # Pull raw recorded audio from the queue.
-            if not data_queue.empty():
-                phrase_complete = False
-                # If enough time has passed between recordings, consider the phrase complete.
-                if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
-                    phrase_complete = True
-                # This is the last time we received new audio data from the queue.
-                phrase_time = now
-
-                # Combine audio data from queue
-                audio_data = b''.join([data_queue.get() for _ in range(data_queue.qsize())])
-
-                # Convert in-ram buffer to something the model can use directly without needing a temp file.
-                # Convert data from 16 bit wide integers to floating point with a width of 32 bits.
-                audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-                # Read the transcription.
-                result = get_whisper_model().transcribe(audio_np, fp16=torch.cuda.is_available())
-                text = result['text'].strip()
-
-                # If we detected a pause between recordings, add a new item to our transcription.
-                # Otherwise edit the existing one.
-                with transcriptions_lock:
-                    if phrase_complete:
-                        # Prevent duplicate transcriptions
-                        if not transcriptions or (transcriptions and transcriptions[-1] != text):
-                            transcription.append(text)
-                            transcriptions.append(text)  # Save to global transcriptions
-                            print(f"New transcription added: {text}")
-                    else:
-                        # Update the last transcription
-                        if transcriptions and transcriptions[-1] != text:
-                            transcription[-1] = text
-                            transcriptions[-1] = text  # Update the last item
-                            print(f"Transcription updated: {text}")
-
-                print('', end='', flush=True)
-            else:
-                # Infinite loops are bad for processors, must sleep.
-                sleep(0.25)
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"Error in transcription thread: {e}")
-            sleep(1)
-
-    print("\n\nTranscription:")
-    for line in transcription:
-        print(line)
-
-
-def transcribe_file(path):
-    """Transcribe an audio file.
-
-    Uses OpenAI's hosted Whisper by default so the app runs without a local
-    model download. Set TRANSCRIBE_BACKEND=local to use the bundled
-    openai-whisper model instead (requires torch, see requirements-local.txt).
-    """
-    if os.getenv("TRANSCRIBE_BACKEND", "api") == "local":
-        if not STT_AVAILABLE:
-            raise RuntimeError(f"Local backend unavailable: {STT_IMPORT_ERROR}")
-        return get_whisper_model().transcribe(path)["text"]
-
-    with open(path, "rb") as fh:
-        result = openai.audio.transcriptions.create(model="whisper-1", file=fh)
-    return result.text
-
-
-# Flask Routes
+# --------------------------------------------------------------------- pages
 
 @app.route("/")
-def main():
-    return render_template('main.html')
+def landing():
+    return render_template("landing.html")
 
-@app.route("/home")
-def index():
-    return render_template('index.html')
 
-@app.route("/summary")
-def summary():
-    text = " ".join(transcriptions) if transcriptions else ""
+@app.route("/new")
+def new_session():
+    return render_template("new.html")
 
-    if not text.strip():
-        return jsonify({"error": "No transcription data available."}), 400
 
-    prompt = f"Summarize the following text in bullet points, making it easy to understand by highlighting main topics and key points: {text}"
+@app.route("/session/<int:session_id>")
+def session_view(session_id):
+    session = db.get_session(session_id)
+    if not session:
+        return render_template("missing.html", session_id=session_id), 404
+    return render_template(
+        "session.html",
+        session=session,
+        segments=db.get_segments(session_id),
+        messages=db.get_messages(session_id),
+        keywords=_keywords_of(session),
+    )
 
-    try:
-        summary_response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=300
-        )
-        summary_text = summary_response.choices[0].message.content
-
-        saved_summaries.append({
-            "title": f"Summary {len(saved_summaries) + 1}",
-            "category": "General",
-            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "content": summary_text
-        })
-
-        keywords_response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": f"Extract relevant keywords from this text: {text}"}
-            ],
-            max_tokens=50
-        )
-        keywords_list = [keyword.strip() for keyword in keywords_response.choices[0].message.content.split(",")]
-
-        return render_template("summary.html", summary=summary_text, keywords_list=keywords_list)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/transcribe", methods=["POST"])
-def transcribe_audio():
-    try:
-        if 'file' not in request.files:
-            print("No file part in the request")
-            return jsonify({"error": "No audio file provided"}), 400
-
-        file = request.files['file']
-
-        if file.filename == '':
-            print("No selected file")
-            return jsonify({"error": "No selected file"}), 400
-
-        # Read audio data
-        audio_data = file.read()
-        if not audio_data:
-            print("No audio data received")
-            return jsonify({"error": "No audio data received"}), 400
-
-        print(f"Received audio data of size: {len(audio_data)} bytes")
-
-        # The browser sends a compressed container (WebM/Opus or MP4), not raw
-        # PCM, so it cannot be fed to np.frombuffer. Write it to a temp file and
-        # let the transcription backend decode it.
-        suffix = os.path.splitext(file.filename)[1] or ".webm"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(audio_data)
-            tmp_path = tmp.name
-
-        try:
-            text = transcribe_file(tmp_path)
-        finally:
-            os.unlink(tmp_path)
-
-        text = (text or "").strip()
-        if not text:
-            return jsonify({"transcription": "", "message": "No speech detected"}), 200
-
-        with transcriptions_lock:
-            transcriptions.append(text)
-
-        return jsonify({"transcription": text}), 200
-
-    except Exception as e:
-        print(f"Error in /transcribe: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/keyword_summary", methods=["GET"])
-def keyword_summary():
-    keyword = request.args.get("keyword")
-    
-    if not keyword:
-        return jsonify({"error": "No keyword provided"}), 400
-
-    try:
-        # Generate a detailed explanation for the keyword
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are an expert in providing concise explanations."},
-                {"role": "user", "content": f"Explain the following keyword in simple terms: {keyword}"}
-            ],
-            max_tokens=100
-        )
-        explanation = response.choices[0].message.content
-        return jsonify({"summary": explanation})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/chat", methods=["POST"])
-def chat():
-    user_message = request.json.get("message")
-
-    if not user_message:
-        return jsonify({"error": "No message provided"}), 400
-
-    summary_context = "Here is a summary of the main topics for context:\n" + " ".join(transcriptions)
-
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "assistant", "content": summary_context},
-                {"role": "user", "content": user_message}
-            ]
-        )
-        ai_response = response.choices[0].message.content
-        return jsonify({"response": ai_response})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route("/review")
 def review():
-    """
-    Render a review page displaying all saved summaries with titles, dates, 
-    categories, and links to detailed summary pages.
-    """
-    return render_template("review.html", summaries=saved_summaries)
+    return render_template("review.html", sessions=db.list_sessions())
 
-@app.route("/review/<int:summary_id>", methods=["GET", "POST"])
-def review_summary(summary_id):
-    """
-    특정 요약을 수정할 수 있는 페이지를 표시하거나 업데이트합니다.
-    """
-    if 0 <= summary_id < len(saved_summaries):
-        summary = saved_summaries[summary_id]
 
-        if request.method == "POST":
-            # 클라이언트로부터 업데이트된 데이터를 받음
-            updated_title = request.form.get("title", summary["title"])
-            updated_content = request.form.get("content", summary["content"])
-            updated_keywords = request.form.get("keywords", "").split(",")
-            updated_ai_chat = request.form.get("ai_chat", summary.get("ai_chat", ""))
+# ------------------------------------------------------------------ sessions
 
-            # 저장된 데이터를 업데이트
-            summary["title"] = updated_title
-            summary["content"] = updated_content
-            summary["keywords"] = updated_keywords
-            summary["ai_chat"] = updated_ai_chat
+@app.route("/api/sessions", methods=["POST"])
+def api_create_session():
+    body = request.get_json(silent=True) or {}
+    source = body.get("source", "mic")
+    if source not in {"system", "mic", "both", "link"}:
+        return fail("Unknown source. Use system, mic, both, or link.")
 
-            return jsonify({"message": "Summary updated successfully!"}), 200
+    kind = body.get("kind", "lecture")
+    title = (body.get("title") or "").strip() or ("Meeting" if kind == "meeting" else "Lecture")
+    session_id = db.create_session(title=title, kind=kind, source=source)
+    return jsonify({"id": session_id, "url": url_for("session_view", session_id=session_id)})
 
-        # 수정 가능한 데이터와 함께 템플릿 렌더링
-        return render_template(
-            "edit_summary.html",
-            summary=summary,
-            keywords=summary.get("keywords", []),
-            ai_chat=summary.get("ai_chat", ""),
-            is_edit=True,
-        )
-    return jsonify({"error": "Summary not found"}), 404
 
-@app.route("/current_transcription", methods=["GET"])
-def current_transcription():
-    with transcriptions_lock:
-        if not transcriptions:
-            return jsonify({"transcription": ""})
-        # 최신 텍스트만 반환
-        return jsonify({"transcription": transcriptions[-1]})
+@app.route("/api/sessions/<int:session_id>", methods=["PATCH", "DELETE"])
+def api_modify_session(session_id):
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
 
-@app.route("/send_audio", methods=["POST"])
-def send_audio_route():
-    """
-    Receive audio data from client and put it into the queue for transcription.
-    """
+    if request.method == "DELETE":
+        db.delete_session(session_id)
+        return jsonify({"ok": True})
+
+    body = request.get_json(silent=True) or {}
+    db.update_session(
+        session_id,
+        **{k: v for k, v in body.items() if k in {"title", "summary", "keywords", "kind"}},
+    )
+    return jsonify({"ok": True})
+
+
+# ------------------------------------------------------------- transcription
+
+@app.route("/api/sessions/<int:session_id>/transcribe", methods=["POST"])
+def api_transcribe(session_id):
+    """Accept one audio clip from the browser and return its text."""
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
+
+    clip = request.files.get("file")
+    if not clip:
+        return fail("No audio was attached.")
+
+    data = clip.read()
+    if not data:
+        return fail("The audio clip was empty.")
+    if len(data) > ai.MAX_UPLOAD_BYTES:
+        return fail("That clip is too large. Keep clips under 24 MB.")
+
+    suffix = os.path.splitext(clip.filename or "")[1] or ".webm"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     try:
-        audio_data = request.get_data()
-        if not audio_data:
-            return jsonify({"error": "No audio data received"}), 400
-        data_queue.put(audio_data)
-        return jsonify({"message": "Audio data received"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        tmp.write(data)
+        tmp.close()
+        # Feed back what we have so terminology stays consistent across clips.
+        text = ai.transcribe(tmp.name, prompt=db.get_transcript(session_id))
+    except Exception as exc:
+        app.logger.error("transcribe failed: %s", traceback.format_exc())
+        return fail(str(exc), 502)
+    finally:
+        os.unlink(tmp.name)
+
+    if not text:
+        return jsonify({"text": "", "note": "no speech detected"})
+
+    db.add_segment(session_id, text)
+    return jsonify({"text": text})
+
+
+# --------------------------------------------------------------- link import
+
+@app.route("/api/import", methods=["POST"])
+def api_import():
+    """Start fetching a URL in the background; returns a session to watch."""
+    body = request.get_json(silent=True) or {}
+    url = (body.get("url") or "").strip()
+    if not ai.looks_like_url(url):
+        return fail("That does not look like a link. It should start with http.")
+
+    try:
+        info = media.probe(url)
+    except media.MediaError as exc:
+        return fail(str(exc))
+
+    session_id = db.create_session(
+        title=info["title"], kind=body.get("kind", "lecture"), source="link", source_url=url
+    )
+    set_job(session_id, state="starting", done=0, total=0, message="Preparing…")
+
+    threading.Thread(target=_run_import, args=(session_id, url), daemon=True).start()
+
+    return jsonify(
+        {
+            "id": session_id,
+            "title": info["title"],
+            "duration": info["duration"],
+            "url": url_for("session_view", session_id=session_id),
+        }
+    )
+
+
+@app.route("/api/import/file", methods=["POST"])
+def api_import_file():
+    """Accept a recording — a Zoom/Teams local recording, a voice memo, anything
+    ffmpeg can decode — and run it through the same pipeline as a link."""
+    upload = request.files.get("file")
+    if not upload or not upload.filename:
+        return fail("No file was attached.")
+
+    workdir = media.workspace()
+    suffix = os.path.splitext(upload.filename)[1] or ".m4a"
+    path = os.path.join(workdir, f"upload{suffix}")
+    upload.save(path)
+
+    if os.path.getsize(path) == 0:
+        shutil.rmtree(workdir, ignore_errors=True)
+        return fail("That file is empty.")
+
+    title = os.path.splitext(os.path.basename(upload.filename))[0][:120]
+    session_id = db.create_session(
+        title=title, kind=request.form.get("kind", "meeting"), source="link"
+    )
+    set_job(session_id, state="starting", done=0, total=0, message="Preparing…")
+
+    threading.Thread(
+        target=_run_pipeline, args=(session_id, path, workdir), daemon=True
+    ).start()
+
+    return jsonify(
+        {"id": session_id, "title": title,
+         "url": url_for("session_view", session_id=session_id)}
+    )
+
+
+def _run_import(session_id, url):
+    workdir = media.workspace()
+    try:
+        set_job(session_id, state="downloading", message="Downloading audio…")
+        path = media.download_audio(url, workdir)
+    except Exception as exc:
+        app.logger.error("download failed: %s", traceback.format_exc())
+        set_job(session_id, state="error", message=str(exc))
+        shutil.rmtree(workdir, ignore_errors=True)
+        return
+    _run_pipeline(session_id, path, workdir)
+
+
+def _run_pipeline(session_id, path, workdir):
+    """Split an audio file, transcribe every chunk, then summarise."""
+    try:
+        set_job(session_id, state="splitting", message="Splitting into chunks…")
+        chunks = media.split(path, workdir)
+        set_job(session_id, total=len(chunks), state="transcribing")
+
+        for index, chunk in enumerate(chunks, start=1):
+            set_job(session_id, done=index - 1,
+                    message=f"Transcribing part {index} of {len(chunks)}…")
+            text = ai.transcribe(chunk, prompt=db.get_transcript(session_id))
+            if text:
+                db.add_segment(session_id, text)
+
+        set_job(session_id, done=len(chunks), state="summarizing",
+                message="Writing the summary…")
+        _build_summary(session_id)
+        set_job(session_id, state="done", message="Ready")
+
+    except Exception as exc:
+        app.logger.error("pipeline failed: %s", traceback.format_exc())
+        set_job(session_id, state="error", message=str(exc))
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+@app.route("/api/sessions/<int:session_id>/progress")
+def api_progress(session_id):
+    job = get_job(session_id)
+    if job:
+        return jsonify(job)
+    session = db.get_session(session_id)
+    if not session:
+        return fail("No such session.", 404)
+    return jsonify({"state": "done" if session.get("summary") else "idle"})
+
+
+# ------------------------------------------------------------------- summary
+
+def _build_summary(session_id):
+    session = db.get_session(session_id)
+    transcript = db.get_transcript(session_id)
+    if not transcript:
+        raise ValueError("There is nothing transcribed in this session yet.")
+
+    result = ai.summarize(transcript, kind=session.get("kind", "lecture"))
+    fields = {"summary": result["summary"], "keywords": result["keywords"]}
+    # Only adopt the generated title if the user has not set one of their own.
+    if session["title"] in {"Lecture", "Meeting", "Untitled session"}:
+        fields["title"] = result["title"]
+    db.update_session(session_id, **fields)
+    return result
+
+
+@app.route("/api/sessions/<int:session_id>/summary", methods=["POST"])
+def api_summary(session_id):
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
+    try:
+        _build_summary(session_id)
+    except ValueError as exc:
+        return fail(str(exc))
+    except Exception as exc:
+        app.logger.error("summary failed: %s", traceback.format_exc())
+        return fail(str(exc), 502)
+
+    session = db.get_session(session_id)
+    return jsonify({
+        "summary": session["summary"],
+        "keywords": _keywords_of(session),
+        "title": session["title"],
+    })
+
+
+@app.route("/api/sessions/<int:session_id>/keyword")
+def api_keyword(session_id):
+    keyword = (request.args.get("q") or "").strip()
+    if not keyword:
+        return fail("No keyword given.")
+    transcript = db.get_transcript(session_id)
+    if not transcript:
+        return fail("There is nothing transcribed in this session yet.")
+    try:
+        return jsonify({
+            "keyword": keyword,
+            "explanation": ai.explain_keyword(keyword, transcript),
+        })
+    except Exception as exc:
+        app.logger.error("keyword failed: %s", traceback.format_exc())
+        return fail(str(exc), 502)
+
+
+# ---------------------------------------------------------------------- chat
+
+@app.route("/api/sessions/<int:session_id>/chat", methods=["POST"])
+def api_chat(session_id):
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
+
+    question = ((request.get_json(silent=True) or {}).get("message") or "").strip()
+    if not question:
+        return fail("Type a question first.")
+
+    transcript = db.get_transcript(session_id)
+    try:
+        reply = ai.answer(question, transcript, history=db.get_messages(session_id))
+    except Exception as exc:
+        app.logger.error("chat failed: %s", traceback.format_exc())
+        return fail(str(exc), 502)
+
+    db.add_message(session_id, "user", question)
+    db.add_message(session_id, "assistant", reply)
+    return jsonify({"reply": reply})
+
+
+@app.route("/api/sessions/<int:session_id>/transcript")
+def api_transcript(session_id):
+    if not db.get_session(session_id):
+        return fail("No such session.", 404)
+    return jsonify({"segments": db.get_segments(session_id)})
+
+
+@app.errorhandler(404)
+def not_found(_):
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "No such endpoint."}), 404
+    return render_template("missing.html", session_id=None), 404
 
 
 if __name__ == "__main__":
-    # Mic capture runs on the machine hosting the server, so it is opt-in.
-    # Enable with ENABLE_MIC=1 when running locally with a microphone.
-    if os.getenv("ENABLE_MIC") == "1":
-        if STT_AVAILABLE:
-            transcription_thread = threading.Thread(target=real_time_transcription, daemon=True)
-            transcription_thread.start()
-        else:
-            print(f"ENABLE_MIC=1 but speech deps are missing: {STT_IMPORT_ERROR}")
-            print("Install them with: pip install -r requirements.txt")
-
+    # 5001 because macOS runs its AirPlay Receiver on 5000.
     app.run(debug=True, port=int(os.getenv("PORT", 5001)))

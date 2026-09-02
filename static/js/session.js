@@ -203,12 +203,20 @@ keywordsEl.addEventListener('click', async (event) => {
   keywordsEl.querySelectorAll('.kw').forEach((b) => b.setAttribute('aria-expanded', 'false'));
   btn.setAttribute('aria-expanded', 'true');
 
+  const kw = btn.dataset.kw;
+  const notes = window.KEYWORD_NOTES || {};
   kwPanel.style.display = '';
+
+  // Seen before — render the saved note without a round trip.
+  if (notes[kw]) {
+    kwPanel.innerHTML = renderMarkdown(notes[kw]);
+    return;
+  }
+
   kwPanel.textContent = '설명을 불러오는 중…';
   try {
-    const data = await api(
-      `/api/sessions/${sessionId}/keyword?q=${encodeURIComponent(btn.dataset.kw)}`
-    );
+    const data = await api(`/api/sessions/${sessionId}/keyword?q=${encodeURIComponent(kw)}`);
+    notes[kw] = data.explanation;
     kwPanel.innerHTML = renderMarkdown(data.explanation);
   } catch (err) {
     kwPanel.textContent = err.message;

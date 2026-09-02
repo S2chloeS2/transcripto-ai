@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS speakers (
     PRIMARY KEY (session_id, label)
 );
 
+CREATE TABLE IF NOT EXISTS keyword_notes (
+    session_id  INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    keyword     TEXT    NOT NULL,
+    explanation TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL,
+    PRIMARY KEY (session_id, keyword)
+);
+
 CREATE TABLE IF NOT EXISTS messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -241,6 +249,30 @@ def get_messages(session_id, limit=40):
             (session_id, limit),
         ).fetchall()
         return [dict(r) for r in reversed(rows)]
+
+
+# ------------------------------------------------------------ keyword notes
+
+def save_keyword_note(session_id, keyword, explanation):
+    """Keep an explanation so reopening the session shows it without another
+    model call — and so the review page can surface what was looked up."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO keyword_notes (session_id, keyword, explanation, created_at)"
+            " VALUES (?,?,?,?)"
+            " ON CONFLICT(session_id, keyword) DO UPDATE SET"
+            "   explanation=excluded.explanation, created_at=excluded.created_at",
+            (session_id, keyword, explanation, now()),
+        )
+
+
+def get_keyword_notes(session_id):
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT keyword, explanation FROM keyword_notes WHERE session_id=?",
+            (session_id,),
+        ).fetchall()
+        return {r["keyword"]: r["explanation"] for r in rows}
 
 
 # ---------------------------------------------------------------- speakers

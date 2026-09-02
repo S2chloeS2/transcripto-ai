@@ -165,6 +165,10 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+  // Explanations already looked up for this session — shown instantly, no API call.
+  window.KEYWORD_NOTES = {{ keyword_notes | tojson }};
+</script>
 <script src="{{ url_for('static', filename='js/capture.js') }}"></script>
 <script src="{{ url_for('static', filename='js/session.js') }}"></script>
 {% endblock %}

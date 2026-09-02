@@ -120,6 +120,7 @@ def session_view(session_id):
         speakers=speakers,
         speaker_order={sp["label"]: i for i, sp in enumerate(speakers)},
         speaker_names=db.get_speaker_names(session_id),
+        keyword_notes=db.get_keyword_notes(session_id),
         engines=engines.available(),
     )
 
@@ -127,9 +128,20 @@ def session_view(session_id):
 @app.route("/review")
 @auth.login_required
 def review():
-    return render_template(
-        "review.html", sessions=db.list_sessions(auth.current_user()["id"])
-    )
+    sessions = db.list_sessions(auth.current_user()["id"])
+    for s in sessions:
+        s["keyword_list"] = _keywords_of(s)
+        s["excerpt"] = _excerpt(s.get("summary"))
+    return render_template("review.html", sessions=sessions)
+
+
+def _excerpt(summary, limit=140):
+    """First line of real content from a markdown summary, for the review list."""
+    for line in (summary or "").splitlines():
+        text = line.strip().lstrip("#-* ").strip()
+        if text:
+            return text[:limit] + ("…" if len(text) > limit else "")
+    return ""
 
 
 # ------------------------------------------------------------------ sessions
@@ -400,17 +412,22 @@ def api_keyword(session_id):
     keyword = (request.args.get("q") or "").strip()
     if not keyword:
         return fail("키워드를 지정해주세요.")
+    # Already looked up once? Serve the saved note — no second model call.
+    cached = db.get_keyword_notes(session_id).get(keyword)
+    if cached:
+        return jsonify({"keyword": keyword, "explanation": cached, "cached": True})
+
     transcript = db.get_transcript(session_id)
     if not transcript:
-        return fail("There is nothing transcribed in this session yet.")
+        return fail("아직 받아적은 내용이 없습니다.")
     try:
-        return jsonify({
-            "keyword": keyword,
-            "explanation": ai.explain_keyword(keyword, transcript),
-        })
+        explanation = ai.explain_keyword(keyword, transcript)
     except Exception as exc:
         app.logger.error("keyword failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
+
+    db.save_keyword_note(session_id, keyword, explanation)
+    return jsonify({"keyword": keyword, "explanation": explanation, "cached": False})
 
 
 # ---------------------------------------------------------------------- chat

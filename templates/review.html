@@ -10,10 +10,16 @@
   </div>
 
   {% if sessions %}
-  <div class="session-list">
+  <div class="field" style="margin-bottom:18px;">
+    <input class="input" id="review-search" type="search"
+           placeholder="제목·키워드·요약에서 찾기" autocomplete="off" aria-label="기록 검색">
+  </div>
+
+  <div class="session-list" id="session-list">
     {% for s in sessions %}
-    <article class="session-card">
-      <div>
+    <article class="session-card"
+             data-haystack="{{ (s.title ~ ' ' ~ (s.keyword_list | join(' ')) ~ ' ' ~ s.excerpt) | lower }}">
+      <div style="min-width:0;">
         <h3><a href="{{ url_for('session_view', session_id=s.id) }}">{{ s.title }}</a></h3>
         <div class="session-card-meta">
           <span class="tag">{{ '미팅' if s.kind == 'meeting' else '강의' }}</span>
@@ -22,11 +28,28 @@
           <span>{{ s.segment_count }}개 구간</span>
           {% if s.summary %}<span class="tag tag-ok">요약 있음</span>{% endif %}
         </div>
+
+        {% if s.excerpt %}
+        <p class="session-card-excerpt">{{ s.excerpt }}</p>
+        {% endif %}
+
+        {% if s.keyword_list %}
+        <div class="keywords" style="margin-top:10px;">
+          {% for kw in s.keyword_list[:8] %}
+          <a class="kw kw-mini" href="{{ url_for('session_view', session_id=s.id) }}#keywords">{{ kw }}</a>
+          {% endfor %}
+          {% if s.keyword_list | length > 8 %}
+          <span class="hint" style="align-self:center;">+{{ s.keyword_list | length - 8 }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
       <button type="button" class="btn btn-quiet btn-sm" data-delete="{{ s.id }}">삭제</button>
     </article>
     {% endfor %}
   </div>
+  <p class="empty" id="review-none" style="display:none;">검색 결과가 없습니다.</p>
+
   {% else %}
   <div class="card card-pad">
     <div class="empty">
@@ -49,5 +72,23 @@ document.querySelectorAll('[data-delete]').forEach(btn => {
     else toast('삭제하지 못했습니다.', 'bad');
   });
 });
+
+// Filter the list as you type. Everything needed is already on the page, so
+// this never touches the server.
+const search = document.getElementById('review-search');
+if (search) {
+  const cards = [...document.querySelectorAll('.session-card')];
+  const none = document.getElementById('review-none');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    let shown = 0;
+    cards.forEach(card => {
+      const hit = !q || card.dataset.haystack.includes(q);
+      card.style.display = hit ? '' : 'none';
+      if (hit) shown += 1;
+    });
+    none.style.display = shown ? 'none' : '';
+  });
+}
 </script>
 {% endblock %}

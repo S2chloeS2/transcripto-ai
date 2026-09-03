@@ -18,6 +18,18 @@
         <span class="tag" id="live-tag" style="display:none;">
           <span class="dot-live"></span> 녹음 중
         </span>
+        <label class="folder-pick" title="폴더에 넣으면 폴더 단위로 한꺼번에 질문할 수 있습니다">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          </svg>
+          <select id="folder-select" aria-label="폴더">
+            <option value="">폴더 없음</option>
+            {% for f in folders %}
+            <option value="{{ f.id }}" {{ 'selected' if session.folder_id == f.id }}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
       </div>
     </div>
     <div class="session-actions">

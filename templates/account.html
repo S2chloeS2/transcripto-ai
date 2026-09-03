@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% set active = 'account' %}
+{% block title %}계정 — TranscriptoAI{% endblock %}
+
+{% block body %}
+<div class="page page-narrow">
+  <div class="page-head">
+    <h1>계정</h1>
+    <p>{{ current_user.name or current_user.email }} · {{ current_user.email }}</p>
+  </div>
+
+  <div class="stack">
+
+    <section class="card card-pad">
+      <p class="section-label">이번 달 사용량</p>
+      <div class="usage-big">
+        <div>
+          <div class="usage-big-num">{{ allowance.remaining_label }} <small>남음</small></div>
+          <p class="hint">{{ allowance.plan.name }} 플랜 · 월 {{ allowance.limit_label }} 중 {{ allowance.used_label }} 사용</p>
+        </div>
+        <span class="tag tag-accent">{{ allowance.plan.name }}</span>
+      </div>
+      <div class="progress-shell" style="height:8px; margin-top:16px;">
+        <div class="progress-bar {{ 'is-low' if allowance.used_pct >= 85 }}" style="width:{{ allowance.used_pct }}%"></div>
+      </div>
+      <p class="hint" style="margin-top:12px;">
+        사용량은 받아적은 오디오 길이로 계산합니다. 요약·키워드·챗은 따로 세지 않습니다.
+        매달 1일에 초기화됩니다.
+      </p>
+    </section>
+
+    <section>
+      <p class="section-label">플랜</p>
+      <div class="lp-prices" style="margin-top:0;">
+        {% for key in order %}
+        {% set p = plans[key] %}
+        <div class="lp-price {{ 'is-featured' if key == 'standard' }}"
+             data-plan="{{ key }}">
+          {% if key == allowance.plan.key %}<span class="lp-price-flag">현재 플랜</span>
+          {% elif key == 'standard' %}<span class="lp-price-flag" style="background:var(--sunk); color:var(--ink-mute);">가장 많이 씁니다</span>{% endif %}
+          <h3>{{ p.name }}</h3>
+          <div class="lp-price-amount">{{ '{:,}'.format(p.price) }}<small>원{% if p.price %} / 월{% endif %}</small></div>
+          <p class="lp-price-hours">월 {{ p.minutes // 60 }}시간 · {{ p.blurb }}</p>
+          <ul>{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>
+          {% if key == allowance.plan.key %}
+            <button class="btn btn-ghost" disabled>사용 중</button>
+          {% elif can_switch %}
+            <button class="btn {{ 'btn-primary' if key == 'standard' else 'btn-ghost' }} plan-switch" data-plan="{{ key }}">
+              {{ '이 플랜으로' if p.price else '무료로 내리기' }}
+            </button>
+          {% else %}
+            <button class="btn btn-ghost" disabled title="결제 연동 준비 중">준비 중</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if can_switch %}
+      <p class="hint" style="margin-top:14px;">
+        지금은 결제 연동 전이라 로컬 테스트용으로 플랜을 바로 바꿀 수 있습니다. 배포 환경에서는 이 버튼이 나타나지 않습니다.
+      </p>
+      {% else %}
+      <p class="hint" style="margin-top:14px;">결제 연동을 준비하고 있습니다. 준비되면 여기서 바로 바꿀 수 있습니다.</p>
+      {% endif %}
+    </section>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.plan-switch').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await api('/api/account/plan', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ plan: btn.dataset.plan }),
+      });
+      location.reload();
+    } catch (err) { toast(err.message, 'bad'); btn.disabled = false; }
+  });
+});
+</script>
+{% endblock %}

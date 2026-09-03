@@ -26,6 +26,7 @@ import auth
 import db
 import engines
 import media
+import plans
 
 app = Flask(__name__, static_url_path="/static")
 
@@ -49,8 +50,22 @@ auth.init_app(app)
 
 @app.context_processor
 def inject_user():
-    """Every template can show who is signed in."""
-    return {"current_user": auth.current_user()}
+    """Every template can show who is signed in and how much time is left."""
+    user = auth.current_user()
+    return {
+        "current_user": user,
+        "allowance": plans.allowance(user["id"], user) if user else None,
+    }
+
+
+def current_folders():
+    user = auth.current_user()
+    return db.list_folders(user["id"]) if user else []
+
+
+def owned_folder(folder_id):
+    user = auth.current_user()
+    return db.get_folder(folder_id, user["id"]) if user else None
 
 # Progress for link imports, keyed by session id. In-process is fine: a failed
 # import is cheap to retry, and the transcript itself is already in SQLite.
@@ -121,6 +136,7 @@ def session_view(session_id):
         speaker_order={sp["label"]: i for i, sp in enumerate(speakers)},
         speaker_names=db.get_speaker_names(session_id),
         keyword_notes=db.get_keyword_notes(session_id),
+        folders=current_folders(),
         engines=engines.available(),
     )
 
@@ -128,11 +144,47 @@ def session_view(session_id):
 @app.route("/review")
 @auth.login_required
 def review():
-    sessions = db.list_sessions(auth.current_user()["id"])
+    user_id = auth.current_user()["id"]
+    raw = request.args.get("folder")
+    folder_filter = None
+    if raw == "none":
+        folder_filter = "none"
+    elif raw and raw.isdigit() and db.get_folder(int(raw), user_id):
+        folder_filter = int(raw)
+
+    sessions = db.list_sessions(user_id, folder_id=folder_filter)
     for s in sessions:
         s["keyword_list"] = _keywords_of(s)
         s["excerpt"] = _excerpt(s.get("summary"))
-    return render_template("review.html", sessions=sessions)
+    return render_template(
+        "review.html", sessions=sessions, folders=current_folders(),
+        folder_filter=folder_filter,
+    )
+
+
+@app.route("/folder/<int:folder_id>")
+@auth.login_required
+def folder_view(folder_id):
+    folder = owned_folder(folder_id)
+    if not folder:
+        return render_template("missing.html", session_id=None), 404
+    sessions = db.list_sessions(auth.current_user()["id"], folder_id=folder_id)
+    for s in sessions:
+        s["keyword_list"] = _keywords_of(s)
+        s["excerpt"] = _excerpt(s.get("summary"))
+    return render_template(
+        "folder.html", folder=folder, sessions=sessions,
+        messages=db.get_folder_messages(folder_id),
+    )
+
+
+@app.route("/account")
+@auth.login_required
+def account():
+    return render_template(
+        "account.html", plans=plans.PLANS, order=plans.ORDER,
+        can_switch=auth.dev_login_allowed(),
+    )
 
 
 def _excerpt(summary, limit=140):
@@ -173,11 +225,84 @@ def api_modify_session(session_id):
         return jsonify({"ok": True})
 
     body = request.get_json(silent=True) or {}
-    db.update_session(
-        session_id,
-        **{k: v for k, v in body.items() if k in {"title", "summary", "keywords", "kind"}},
-    )
+    fields = {k: v for k, v in body.items() if k in {"title", "summary", "keywords", "kind"}}
+
+    # Filing into a folder: only into one of the caller's own, or out of any.
+    if "folder_id" in body:
+        target = body["folder_id"]
+        if target in (None, "", "none"):
+            fields["folder_id"] = None
+        elif str(target).isdigit() and owned_folder(int(target)):
+            fields["folder_id"] = int(target)
+        else:
+            return fail("그 폴더를 찾을 수 없습니다.", 404)
+
+    db.update_session(session_id, **fields)
     return jsonify({"ok": True})
+
+
+# ------------------------------------------------------------------- folders
+
+@app.route("/api/folders", methods=["POST"])
+@auth.login_required
+def api_create_folder():
+    name = ((request.get_json(silent=True) or {}).get("name") or "").strip()[:80]
+    if not name:
+        return fail("폴더 이름을 입력해주세요.")
+    folder_id = db.create_folder(auth.current_user()["id"], name)
+    return jsonify({"id": folder_id, "name": name, "url": url_for("folder_view", folder_id=folder_id)})
+
+
+@app.route("/api/folders/<int:folder_id>", methods=["PATCH", "DELETE"])
+@auth.login_required
+def api_modify_folder(folder_id):
+    if not owned_folder(folder_id):
+        return fail("폴더를 찾을 수 없습니다.", 404)
+    if request.method == "DELETE":
+        db.delete_folder(folder_id)
+        return jsonify({"ok": True})
+    name = ((request.get_json(silent=True) or {}).get("name") or "").strip()[:80]
+    if not name:
+        return fail("폴더 이름을 입력해주세요.")
+    db.rename_folder(folder_id, name)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/folders/<int:folder_id>/chat", methods=["POST"])
+@auth.login_required
+def api_folder_chat(folder_id):
+    """Ask across every recording in the folder — a whole course at once."""
+    if not owned_folder(folder_id):
+        return fail("폴더를 찾을 수 없습니다.", 404)
+    question = ((request.get_json(silent=True) or {}).get("message") or "").strip()
+    if not question:
+        return fail("질문을 입력해주세요.")
+    try:
+        reply = ai.answer_folder(
+            question, db.folder_corpus(folder_id), history=db.get_folder_messages(folder_id)
+        )
+    except Exception as exc:
+        app.logger.error("folder chat failed: %s", traceback.format_exc())
+        return fail(str(exc), 502)
+    db.add_folder_message(folder_id, "user", question)
+    db.add_folder_message(folder_id, "assistant", reply)
+    return jsonify({"reply": reply})
+
+
+# ------------------------------------------------------------------- account
+
+@app.route("/api/account/plan", methods=["POST"])
+@auth.login_required
+def api_set_plan():
+    """Switch plans by hand. Only while payment is not wired up, and only on a
+    local dev build — a deployed server refuses this outright."""
+    if not auth.dev_login_allowed():
+        return fail("결제 연동 전에는 플랜을 직접 바꿀 수 없습니다.", 403)
+    plan = ((request.get_json(silent=True) or {}).get("plan") or "").strip()
+    if plan not in plans.PLANS:
+        return fail("없는 플랜입니다.")
+    db.set_plan(auth.current_user()["id"], plan)
+    return jsonify({"ok": True, "plan": plan})
 
 
 # ------------------------------------------------------------- transcription
@@ -199,11 +324,20 @@ def api_transcribe(session_id):
     if len(data) > ai.MAX_UPLOAD_BYTES:
         return fail("That clip is too large. Keep clips under 24 MB.")
 
+    user = auth.current_user()
     suffix = os.path.splitext(clip.filename or "")[1] or ".webm"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     try:
         tmp.write(data)
         tmp.close()
+
+        # Meter before spending: a clip is ~6 s, but measure it rather than assume.
+        seconds = media.duration_of(tmp.name) or 6.0
+        ok, message, allowance = plans.check(user["id"], seconds, user)
+        if not ok:
+            return jsonify({"error": message, "quota": True,
+                            "remaining_s": allowance["remaining_s"]}), 402
+
         # Live clips are transcribed one at a time for fast feedback, so no
         # diarization here: speaker A in one clip is not speaker A in the next.
         # The session can be re-run with diarization once recording stops.
@@ -213,17 +347,19 @@ def api_transcribe(session_id):
             kind=session.get("kind", "lecture"),
             prompt=db.get_transcript(session_id),
         )
+        db.log_usage(user["id"], session_id, seconds)
     except Exception as exc:
         app.logger.error("transcribe failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
     finally:
         os.unlink(tmp.name)
 
+    remaining = plans.allowance(user["id"], user)["remaining_s"]
     if not text:
-        return jsonify({"text": "", "note": "no speech detected"})
+        return jsonify({"text": "", "note": "no speech detected", "remaining_s": remaining})
 
     db.add_segment(session_id, text)
-    return jsonify({"text": text})
+    return jsonify({"text": text, "remaining_s": remaining})
 
 
 # --------------------------------------------------------------- link import
@@ -242,19 +378,29 @@ def api_import():
     except media.MediaError as exc:
         return fail(str(exc))
 
+    user = auth.current_user()
+    ok, message, allowance = plans.check(user["id"], info["duration"], user)
+    if not ok:
+        return jsonify({"error": message, "quota": True,
+                        "remaining_s": allowance["remaining_s"]}), 402
+
     session_id = db.create_session(
         title=info["title"], kind=body.get("kind", "lecture"), source="link",
-        source_url=url, user_id=auth.current_user()["id"],
+        source_url=url, user_id=user["id"],
     )
     set_job(session_id, state="starting", done=0, total=0, message="Preparing…")
 
-    threading.Thread(target=_run_import, args=(session_id, url), daemon=True).start()
+    # A TED link resolves to its YouTube mirror; download from there.
+    threading.Thread(
+        target=_run_import, args=(session_id, info["webpage_url"]), daemon=True
+    ).start()
 
     return jsonify(
         {
             "id": session_id,
             "title": info["title"],
             "duration": info["duration"],
+            "via_youtube": info.get("via_youtube", False),
             "url": url_for("session_view", session_id=session_id),
         }
     )
@@ -277,6 +423,18 @@ def api_import_file():
     if os.path.getsize(path) == 0:
         shutil.rmtree(workdir, ignore_errors=True)
         return fail("That file is empty.")
+
+    seconds = media.duration_of(path)
+    if seconds <= 0:
+        shutil.rmtree(workdir, ignore_errors=True)
+        return fail("오디오 길이를 읽을 수 없습니다. 오디오·영상 파일이 맞는지 확인해주세요.")
+
+    user = auth.current_user()
+    ok, message, allowance = plans.check(user["id"], seconds, user)
+    if not ok:
+        shutil.rmtree(workdir, ignore_errors=True)
+        return jsonify({"error": message, "quota": True,
+                        "remaining_s": allowance["remaining_s"]}), 402
 
     title = os.path.splitext(os.path.basename(upload.filename))[0][:120]
     session_id = db.create_session(
@@ -317,6 +475,9 @@ def _run_pipeline(session_id, path, workdir):
 
         session = db.get_session(session_id)
         kind = session.get("kind", "lecture")
+        # The request was already checked against the plan; now record what it
+        # actually cost, from the file itself.
+        db.log_usage(session.get("user_id"), session_id, media.duration_of(path))
         # Meetings want to know who spoke; lectures are one voice, so we skip
         # diarization there and use the cheaper engine.
         diarize = kind == "meeting"

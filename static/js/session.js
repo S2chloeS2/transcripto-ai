@@ -309,3 +309,23 @@ document.querySelectorAll('.speaker-name').forEach((input) => {
     }, 700);
   });
 });
+
+// -------------------------------------------------------------------- folder
+
+// Filing this session into a folder saves immediately; the folder page then
+// includes it in cross-recording chat.
+const folderSelect = document.getElementById('folder-select');
+if (folderSelect) {
+  folderSelect.addEventListener('change', async () => {
+    try {
+      await api(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_id: folderSelect.value || null }),
+      });
+      toast(folderSelect.value ? '폴더에 넣었습니다.' : '폴더에서 뺐습니다.', 'ok');
+    } catch (err) {
+      toast(err.message, 'bad');
+    }
+  });
+}

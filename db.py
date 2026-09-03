@@ -68,14 +68,40 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TEXT    NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS folders (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS folder_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    folder_id  INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+    role       TEXT    NOT NULL,
+    content    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS usage_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+    seconds    INTEGER NOT NULL,
+    created_at TEXT    NOT NULL
+);
+
 """
 
 # Indexes run after the migrations below, because an index cannot reference a
 # column that an older database has not been given yet.
 INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_folder ON sessions(folder_id);
 CREATE INDEX IF NOT EXISTS idx_segments_session ON segments(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id);
+CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_log(user_id, created_at);
 """
 
 
@@ -97,6 +123,12 @@ def init():
         cols = {row["name"] for row in conn.execute("PRAGMA table_info(sessions)")}
         if "user_id" not in cols:
             conn.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER REFERENCES users(id)")
+        if "folder_id" not in cols:
+            conn.execute("ALTER TABLE sessions ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL")
+
+        ucols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "plan" not in ucols:
+            conn.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'")
 
         existing = {row["name"] for row in conn.execute("PRAGMA table_info(segments)")}
         for column, decl in (
@@ -112,13 +144,13 @@ def init():
 
 # ---------------------------------------------------------------- sessions
 
-def create_session(title, kind="lecture", source="mic", source_url=None, user_id=None):
+def create_session(title, kind="lecture", source="mic", source_url=None, user_id=None, folder_id=None):
     ts = now()
     with connect() as conn:
         cur = conn.execute(
-            "INSERT INTO sessions (title, kind, source, source_url, created_at, updated_at, user_id)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (title, kind, source, source_url, ts, ts, user_id),
+            "INSERT INTO sessions (title, kind, source, source_url, created_at, updated_at, user_id, folder_id)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            (title, kind, source, source_url, ts, ts, user_id, folder_id),
         )
         return cur.lastrowid
 
@@ -137,20 +169,29 @@ def get_session(session_id, user_id=None):
         return dict(row) if row else None
 
 
-def list_sessions(user_id):
+def list_sessions(user_id, folder_id=None):
+    """All of a user's sessions, newest first. With `folder_id`, only that
+    folder's; with folder_id="none", only the ones not filed anywhere."""
+    where = "s.user_id = ?"
+    params = [user_id]
+    if folder_id == "none":
+        where += " AND s.folder_id IS NULL"
+    elif folder_id is not None:
+        where += " AND s.folder_id = ?"
+        params.append(folder_id)
     with connect() as conn:
         rows = conn.execute(
             "SELECT s.*, ("
             "  SELECT COUNT(*) FROM segments g WHERE g.session_id = s.id"
             ") AS segment_count"
-            " FROM sessions s WHERE s.user_id = ? ORDER BY s.created_at DESC",
-            (user_id,),
+            f" FROM sessions s WHERE {where} ORDER BY s.created_at DESC",
+            params,
         ).fetchall()
         return [dict(r) for r in rows]
 
 
 def update_session(session_id, **fields):
-    allowed = {"title", "kind", "summary", "keywords", "source_url"}
+    allowed = {"title", "kind", "summary", "keywords", "source_url", "folder_id"}
     sets, values = [], []
     for key, value in fields.items():
         if key not in allowed:
@@ -369,3 +410,112 @@ def usage_minutes(user_id, since=None):
             (user_id, since) if since else (user_id,),
         ).fetchone()
         return round((row["ms"] or 0) / 60000, 1)
+
+
+# ----------------------------------------------------------------- folders
+
+def create_folder(user_id, name):
+    with connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO folders (user_id, name, created_at) VALUES (?,?,?)",
+            (user_id, name, now()),
+        )
+        return cur.lastrowid
+
+
+def get_folder(folder_id, user_id):
+    """A folder, only if it belongs to this user — None otherwise."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM folders WHERE id=? AND user_id=?", (folder_id, user_id)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_folders(user_id):
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT f.*, ("
+            "  SELECT COUNT(*) FROM sessions s WHERE s.folder_id = f.id"
+            ") AS session_count"
+            " FROM folders f WHERE f.user_id = ? ORDER BY f.created_at",
+            (user_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def rename_folder(folder_id, name):
+    with connect() as conn:
+        conn.execute("UPDATE folders SET name=? WHERE id=?", (name, folder_id))
+
+
+def delete_folder(folder_id):
+    """Removes the folder. Its sessions stay, just unfiled (ON DELETE SET NULL)."""
+    with connect() as conn:
+        conn.execute("DELETE FROM folders WHERE id=?", (folder_id,))
+
+
+def add_folder_message(folder_id, role, content):
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO folder_messages (folder_id, role, content, created_at) VALUES (?,?,?,?)",
+            (folder_id, role, content, now()),
+        )
+
+
+def get_folder_messages(folder_id, limit=40):
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT role, content FROM folder_messages WHERE folder_id=? ORDER BY id DESC LIMIT ?",
+            (folder_id, limit),
+        ).fetchall()
+        return [dict(r) for r in reversed(rows)]
+
+
+def folder_corpus(folder_id):
+    """Everything the folder chat may draw on: each session's title, summary
+    and segments. Kept as a plain structure so ai.py can rank pieces of it."""
+    with connect() as conn:
+        sessions = conn.execute(
+            "SELECT id, title, kind, summary, created_at FROM sessions"
+            " WHERE folder_id=? ORDER BY created_at",
+            (folder_id,),
+        ).fetchall()
+        out = []
+        for s in sessions:
+            segs = conn.execute(
+                "SELECT text FROM segments WHERE session_id=? ORDER BY id", (s["id"],)
+            ).fetchall()
+            out.append({
+                "id": s["id"], "title": s["title"], "kind": s["kind"],
+                "summary": s["summary"] or "", "date": (s["created_at"] or "")[:10],
+                "segments": [r["text"] for r in segs],
+            })
+        return out
+
+
+# ------------------------------------------------------------------- usage
+
+def log_usage(user_id, session_id, seconds):
+    if not seconds or seconds <= 0:
+        return
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO usage_log (user_id, session_id, seconds, created_at) VALUES (?,?,?,?)",
+            (user_id, session_id, int(round(seconds)), now()),
+        )
+
+
+def usage_seconds(user_id, since=None):
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS s FROM usage_log WHERE user_id=?"
+            + (" AND created_at >= ?" if since else ""),
+            (user_id, since) if since else (user_id,),
+        ).fetchone()
+        return int(row["s"] or 0)
+
+
+def set_plan(user_id, plan):
+    with connect() as conn:
+        conn.execute("UPDATE users SET plan=? WHERE id=?", (plan, user_id))

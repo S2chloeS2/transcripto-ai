@@ -54,14 +54,47 @@ def assert_public_url(url):
             raise MediaError("내부 네트워크 주소는 가져올 수 없습니다.")
 
 
+def resolve(url):
+    """Turn a pasted link into what yt-dlp should actually fetch.
+
+    TED's own site breaks yt-dlp's extractor, but every TED talk is also on
+    TED's YouTube channel — so a ted.com link becomes a YouTube search for the
+    same talk. The caller shows the matched title so a wrong match is visible.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    if host.endswith("ted.com"):
+        slug = urlparse(url).path.rstrip("/").split("/")[-1]
+        words = " ".join(w for w in slug.replace("_", " ").replace("-", " ").split() if w)
+        if words:
+            return f"ytsearch1:{words} TED", True
+    return url, False
+
+
+def duration_of(path):
+    """Length of a local audio/video file in seconds, via ffprobe. 0 if unknown."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", path],
+            capture_output=True, text=True, timeout=60,
+        ).stdout.strip()
+        return float(out) if out else 0.0
+    except Exception:
+        return 0.0
+
+
 def probe(url):
     """Read a URL's metadata without downloading it."""
-    assert_public_url(url)
+    target, via_search = resolve(url)
+    if not via_search:
+        assert_public_url(url)
     opts = {"quiet": True, "no_warnings": True, "skip_download": True}
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(target, download=False)
     except Exception as exc:
+        if via_search:
+            raise MediaError("TED 강연을 유튜브에서 찾지 못했습니다. 유튜브 TED 채널의 링크를 직접 붙여넣어 주세요.") from exc
         raise MediaError(f"Could not read that link: {exc}") from exc
 
     if info.get("_type") == "playlist":
@@ -80,7 +113,10 @@ def probe(url):
         "title": info.get("title") or "Untitled",
         "duration": duration,
         "uploader": info.get("uploader") or "",
+        # For a TED link this is the YouTube URL we matched — the caller should
+        # download from here, not from the original address.
         "webpage_url": info.get("webpage_url") or url,
+        "via_youtube": via_search,
     }
 
 

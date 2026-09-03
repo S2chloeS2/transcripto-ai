@@ -9,7 +9,22 @@
     <p>소리가 어디서 나오는지 고르면 됩니다. 시작한 뒤에도 바꿀 수 있습니다.</p>
   </div>
 
-  <div class="stack">
+  {% if allowance and allowance.remaining_s <= 0 %}
+  <div class="notice notice-block" style="margin-bottom:20px;">
+    <div>
+      <strong>이번 달 {{ allowance.plan.name }} 플랜의 {{ allowance.limit_label }}을 다 썼습니다.</strong>
+      다음 달 1일에 초기화되거나, <a href="{{ url_for('account') }}">플랜을 올리면</a> 바로 이어서 쓸 수 있습니다.
+      지난 기록은 계속 열어볼 수 있습니다.
+    </div>
+  </div>
+  {% elif allowance and allowance.used_pct >= 85 %}
+  <div class="notice" style="margin-bottom:20px;">
+    <div>이번 달 남은 시간이 <strong>{{ allowance.remaining_label }}</strong>입니다.
+      <a href="{{ url_for('account') }}">계정</a>에서 사용량을 확인하세요.</div>
+  </div>
+  {% endif %}
+
+  <div class="stack" {% if allowance and allowance.remaining_s <= 0 %}data-quota-exhausted="1"{% endif %}>
 
     <section class="card card-pad">
       <p class="section-label">지금 바로 듣기</p>

@@ -18,6 +18,13 @@
       {% if current_user %}
         <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">새 기록</a>
         <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">지난 기록</a>
+        {% if allowance %}
+        <a class="usage-pill {{ 'is-low' if allowance.used_pct >= 85 }}" href="{{ url_for('account') }}"
+           title="{{ allowance.plan.name }} · 이번 달 {{ allowance.used_label }} / {{ allowance.limit_label }}">
+          <span class="usage-track"><span class="usage-fill" style="width:{{ allowance.used_pct }}%"></span></span>
+          <span>{{ allowance.remaining_label }} 남음</span>
+        </a>
+        {% endif %}
         <div class="nav-user">
           <span class="nav-avatar" title="{{ current_user.email }}">
             {% if current_user.picture %}
@@ -26,6 +33,7 @@
               {{ (current_user.name or current_user.email)[0]|upper }}
             {% endif %}
           </span>
+          <a class="nav-link {{ 'is-active' if active == 'account' }}" href="{{ url_for('account') }}">계정</a>
           <a class="nav-link" href="{{ url_for('auth.logout') }}">로그아웃</a>
         </div>
       {% else %}

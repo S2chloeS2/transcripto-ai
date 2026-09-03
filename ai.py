@@ -262,6 +262,80 @@ def answer(question, transcript, history=None):
     return _chat(messages, max_tokens=700)
 
 
+# --------------------------------------------------------------- folder chat
+
+FOLDER_SYSTEM = (
+    "You answer questions about a FOLDER of related recordings — for example "
+    "every lecture of one course. The material below is your only source.\n\n"
+    "Rules:\n"
+    "1. Answer only from the material. Quote the relevant line, and say which "
+    "recording (by its title) it came from.\n"
+    "2. If several recordings touch the topic, bring them together and note "
+    "how the later one built on or changed the earlier one.\n"
+    "3. If nothing in the material covers the question, say so in ONE short "
+    "sentence in the material's language and stop. Do not add general knowledge.\n"
+    "4. Speech recognition makes mistakes; read through obvious errors.\n"
+    "5. Answer in the language the material is spoken in, unless the question "
+    "is clearly in another language. These instructions being in English must "
+    "not affect your output language.\n\n"
+    "MATERIAL:\n{material}"
+)
+
+_STOP = set("the a an of to in is are was were and or for on at by with that this "
+            "그 이 저 것 수 등 및 또 더 좀 는 은 이 가 을 를 에 의 로 와 과".split())
+
+
+def _terms(text):
+    return {t for t in re.findall(r"[\w가-힣]{2,}", (text or "").lower()) if t not in _STOP}
+
+
+def build_folder_material(question, corpus, max_chars=40_000, top_segments=45):
+    """Assemble what the folder chat gets to see.
+
+    Every session's summary goes in (they are short and give the shape of the
+    course). Then the segments most related to the question, from any session,
+    ranked by shared terms — so a folder of twelve lectures still fits in the
+    model's window and the answer can cite the exact line.
+    """
+    q_terms = _terms(question)
+    parts, used = [], 0
+
+    for s in corpus:
+        block = f"### {s['title']} ({s['date']})\n{s['summary'].strip() or '(요약 없음)'}\n"
+        parts.append(block)
+        used += len(block)
+
+    scored = []
+    for s in corpus:
+        for text in s["segments"]:
+            overlap = len(q_terms & _terms(text))
+            if overlap:
+                scored.append((overlap, s["title"], text))
+    scored.sort(key=lambda x: -x[0])
+
+    if scored:
+        parts.append("\n### 관련 구절\n")
+        for _, title, text in scored[:top_segments]:
+            line = f"[{title}] {text}\n"
+            if used + len(line) > max_chars:
+                break
+            parts.append(line)
+            used += len(line)
+
+    return "".join(parts)
+
+
+def answer_folder(question, corpus, history=None):
+    if not any(s["segments"] for s in corpus):
+        return "이 폴더에는 아직 받아적은 내용이 없어서 답할 근거가 없습니다."
+    material = build_folder_material(question, corpus)
+    messages = [{"role": "system", "content": FOLDER_SYSTEM.format(material=material)}]
+    for turn in (history or [])[-10:]:
+        messages.append({"role": turn["role"], "content": turn["content"]})
+    messages.append({"role": "user", "content": question})
+    return _chat(messages, max_tokens=900)
+
+
 # ------------------------------------------------------------------- helpers
 
 def looks_like_url(text):

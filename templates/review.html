@@ -6,8 +6,29 @@
 <div class="page page-narrow">
   <div class="page-head">
     <h1>지난 기록</h1>
-    <p>기록은 저장되므로 나중에 다시 열어 요약과 챗을 이어갈 수 있습니다.</p>
+    <p>기록은 저장되므로 나중에 다시 열어 요약과 챗을 이어갈 수 있습니다.
+       과목이나 프로젝트별로 폴더에 모으면 <strong>폴더 전체에 한꺼번에 질문</strong>할 수 있습니다.</p>
   </div>
+
+  <div class="folder-bar" id="folder-bar">
+    <a class="folder-chip {{ 'is-active' if folder_filter is none }}" href="{{ url_for('review') }}">전체</a>
+    {% for f in folders %}
+    <a class="folder-chip {{ 'is-active' if folder_filter == f.id }}" href="{{ url_for('review', folder=f.id) }}">
+      {{ f.name }} <span class="count">{{ f.session_count }}</span>
+    </a>
+    {% endfor %}
+    <a class="folder-chip {{ 'is-active' if folder_filter == 'none' }}" href="{{ url_for('review', folder='none') }}">폴더 없음</a>
+    <button type="button" class="folder-chip folder-chip-new" id="folder-new">+ 새 폴더</button>
+  </div>
+
+  {% if folder_filter is not none and folder_filter != 'none' %}
+  <div class="notice" style="margin-bottom:18px;">
+    <div>
+      이 폴더의 기록 전체를 대상으로 질문하려면
+      <a href="{{ url_for('folder_view', folder_id=folder_filter) }}"><strong>폴더 열기 →</strong></a>
+    </div>
+  </div>
+  {% endif %}
 
   {% if sessions %}
   <div class="field" style="margin-bottom:18px;">
@@ -44,7 +65,18 @@
         </div>
         {% endif %}
       </div>
-      <button type="button" class="btn btn-quiet btn-sm" data-delete="{{ s.id }}">삭제</button>
+
+      <div style="display:grid; gap:8px; justify-items:end;">
+        <label class="folder-pick">
+          <select class="folder-assign" data-session="{{ s.id }}" aria-label="폴더">
+            <option value="">폴더 없음</option>
+            {% for f in folders %}
+            <option value="{{ f.id }}" {{ 'selected' if s.folder_id == f.id }}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="button" class="btn btn-quiet btn-sm" data-delete="{{ s.id }}">삭제</button>
+      </div>
     </article>
     {% endfor %}
   </div>
@@ -53,8 +85,13 @@
   {% else %}
   <div class="card card-pad">
     <div class="empty">
-      아직 기록이 없습니다.<br>
-      <a href="{{ url_for('new_session') }}" style="display:inline-block; margin-top:12px;">첫 기록 시작하기</a>
+      {% if folder_filter is not none %}
+        이 조건에 맞는 기록이 없습니다.<br>
+        <a href="{{ url_for('review') }}" style="display:inline-block; margin-top:12px;">전체 보기</a>
+      {% else %}
+        아직 기록이 없습니다.<br>
+        <a href="{{ url_for('new_session') }}" style="display:inline-block; margin-top:12px;">첫 기록 시작하기</a>
+      {% endif %}
     </div>
   </div>
   {% endif %}
@@ -63,6 +100,7 @@
 
 {% block scripts %}
 <script>
+// ---- delete
 document.querySelectorAll('[data-delete]').forEach(btn => {
   btn.addEventListener('click', async () => {
     const id = btn.dataset.delete;
@@ -73,8 +111,33 @@ document.querySelectorAll('[data-delete]').forEach(btn => {
   });
 });
 
-// Filter the list as you type. Everything needed is already on the page, so
-// this never touches the server.
+// ---- new folder
+document.getElementById('folder-new').addEventListener('click', async () => {
+  const name = prompt('폴더 이름 (예: 운영체제, 팀 회의)');
+  if (!name || !name.trim()) return;
+  try {
+    const data = await api('/api/folders', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    window.location.href = `/review?folder=${data.id}`;
+  } catch (err) { toast(err.message, 'bad'); }
+});
+
+// ---- file a session into a folder, right from the list
+document.querySelectorAll('.folder-assign').forEach(sel => {
+  sel.addEventListener('change', async () => {
+    try {
+      await api(`/api/sessions/${sel.dataset.session}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder_id: sel.value || null }),
+      });
+      toast(sel.value ? '폴더에 넣었습니다.' : '폴더에서 뺐습니다.', 'ok');
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+});
+
+// ---- search: everything needed is already on the page
 const search = document.getElementById('review-search');
 if (search) {
   const cards = [...document.querySelectorAll('.session-card')];

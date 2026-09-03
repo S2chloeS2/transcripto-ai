@@ -680,3 +680,6 @@ a:hover { text-decoration: underline; }
   padding: 3px 8px; max-width: 18ch;
 }
 .folder-pick select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* every price card anchors its own flag, not just the featured one */
+.lp-price { position: relative; }

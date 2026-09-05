@@ -5,9 +5,11 @@
 <div class="auth-wrap">
   <div class="auth-card">
 
-    <div class="auth-mark">
+    <img class="auth-art" src="{{ url_for('static', filename='images/story/owl-reading.jpg') }}"
+         alt="" width="480" height="480">
+    <div class="auth-mark" style="justify-content:center;">
       <span class="brand-dot"></span>
-      <strong style="font-size:15.5px;">TranscriptoAI</strong>
+      <strong style="font-size:15.5px; font-family:'Gowun Batang', Georgia, serif;">TranscriptoAI</strong>
     </div>
 
     {% if error %}

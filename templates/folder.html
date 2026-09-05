@@ -50,6 +50,7 @@
         </div>
         {% else %}
         <div class="empty">
+          <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.jpg') }}" alt="" width="900" height="672">
           아직 이 폴더에 넣은 기록이 없습니다.<br>
           <a href="{{ url_for('review') }}">지난 기록</a>에서 각 기록의 폴더를 고르면 여기에 모입니다.
         </div>
@@ -58,7 +59,10 @@
     </div>
 
     <aside class="card card-pad">
-      <p class="section-label">폴더 전체에 질문</p>
+      <div class="chat-head">
+        <img class="spot-sm" src="{{ url_for('static', filename='images/story/owl-bubble.jpg') }}" alt="" width="480" height="480">
+        <p class="section-label" style="margin:0;">폴더 전체에 질문</p>
+      </div>
       <p class="hint" style="margin-bottom:14px;">
         이 폴더의 모든 기록을 한꺼번에 봅니다. 어느 기록에서 나온 말인지 함께 알려주고,
         나오지 않은 내용은 모른다고 답합니다.

@@ -85,6 +85,7 @@
   {% else %}
   <div class="card card-pad">
     <div class="empty">
+      <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.jpg') }}" alt="" width="900" height="672">
       {% if folder_filter is not none %}
         이 조건에 맞는 기록이 없습니다.<br>
         <a href="{{ url_for('review') }}" style="display:inline-block; margin-top:12px;">전체 보기</a>

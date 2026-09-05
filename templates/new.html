@@ -31,25 +31,19 @@
       <div class="modes" role="group" aria-label="소리를 받을 곳">
 
         <button type="button" class="mode" data-source="system" aria-pressed="false">
-          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-            <rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>
-          </svg>
+          <img class="mode-art" src="{{ url_for('static', filename='images/story/laptop.jpg') }}" alt="" width="480" height="480">
           <div class="mode-name">컴퓨터 소리</div>
           <p class="mode-desc">Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리만 담고 내 목소리는 담기지 않습니다.</p>
         </button>
 
         <button type="button" class="mode" data-source="mic" aria-pressed="true">
-          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-            <rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/>
-          </svg>
+          <img class="mode-art" src="{{ url_for('static', filename='images/story/mic.jpg') }}" alt="" width="480" height="480">
           <div class="mode-name">방 안의 대화</div>
           <p class="mode-desc">강의실 수업, 대면 미팅, 인터뷰. 노트북 마이크로 주변 소리를 담습니다.</p>
         </button>
 
         <button type="button" class="mode" data-source="both" aria-pressed="false">
-          <svg class="mode-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
-            <path d="M7 8v8M12 4v16M17 8v8M2.5 11v2M21.5 11v2"/>
-          </svg>
+          <img class="mode-art" src="{{ url_for('static', filename='images/story/headphones.jpg') }}" alt="" width="480" height="480">
           <div class="mode-name">둘 다 섞기</div>
           <p class="mode-desc">화상 회의에 현장 사람들이 섞여 있을 때. 화면 속 목소리와 옆자리 발언을 함께 담습니다.</p>
         </button>

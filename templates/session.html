@@ -129,6 +129,7 @@
         </div>
         {% if not segments %}
         <div class="empty" id="transcript-empty">
+          <img class="empty-art" style="width:120px;" src="{{ url_for('static', filename='images/story/notebook.jpg') }}" alt="" width="480" height="480">
           아직 받아적은 내용이 없습니다.<br>녹음을 시작하면 여기에 쌓입니다.
         </div>
         {% endif %}
@@ -151,7 +152,10 @@
     </div>
 
     <aside class="card card-pad">
-      <p class="section-label">AI 챗</p>
+      <div class="chat-head">
+        <img class="spot-sm" src="{{ url_for('static', filename='images/story/owl-bubble.jpg') }}" alt="" width="480" height="480">
+        <p class="section-label" style="margin:0;">AI 챗</p>
+      </div>
       <p class="hint" style="margin-bottom:14px;">오늘 기록한 내용 안에서만 답합니다. 나오지 않은 내용은 모른다고 말합니다.</p>
       <div class="chat">
         <div class="chat-log" id="chat-log">

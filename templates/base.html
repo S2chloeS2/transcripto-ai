@@ -26,13 +26,13 @@
         </a>
         {% endif %}
         <div class="nav-user">
-          <span class="nav-avatar" title="{{ current_user.email }}">
+          <a class="nav-avatar" href="{{ url_for('account') }}" title="{{ current_user.email }} · 계정" aria-label="계정">
             {% if current_user.picture %}
               <img src="{{ current_user.picture }}" alt="" referrerpolicy="no-referrer">
             {% else %}
               {{ (current_user.name or current_user.email)[0]|upper }}
             {% endif %}
-          </span>
+          </a>
           <a class="nav-link {{ 'is-active' if active == 'account' }}" href="{{ url_for('account') }}">계정</a>
           <a class="nav-link" href="{{ url_for('auth.logout') }}">로그아웃</a>
         </div>

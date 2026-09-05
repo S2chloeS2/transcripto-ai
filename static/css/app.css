@@ -858,3 +858,11 @@ html, body { overflow-x: clip; }
   .usage-pill { padding: 4px 8px; }
   .usage-track { width: 36px; }
 }
+
+/* Narrow screens: the avatar is the account link, text links step aside. */
+.nav-avatar { text-decoration: none; }
+.nav-avatar:hover { text-decoration: none; filter: brightness(.96); }
+@media (max-width: 640px) {
+  .nav-user .nav-link { display: none; }
+  .nav-user { margin-left: 2px; }
+}

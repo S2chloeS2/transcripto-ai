@@ -877,3 +877,14 @@ html, body { overflow-x: clip; }
 .wash-img::before { background-image: url("/static/images/story/wash.png"); mix-blend-mode: normal; opacity: .9; }
 :root:not([data-theme="light"]) .wash-img::before { mix-blend-mode: normal; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wash-img::before { opacity: .35; } }
+
+/* Language switch: full word on desktop, two-letter code on phones. The usage
+   pill steps aside on phones too — it lives on the account page anyway. */
+.lang-short { display: none; }
+@media (max-width: 640px) {
+  .lang-long { display: none; }
+  .lang-short { display: inline; }
+  .lang-switch { padding: 4px 8px; margin-left: 2px; }
+  .usage-pill { display: none; }
+  .nav-links { gap: 2px; }
+}

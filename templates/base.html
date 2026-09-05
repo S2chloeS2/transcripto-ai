@@ -51,7 +51,7 @@
         <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">{{ _('무료로 시작하기') }}</a>
       {% endif %}
       <a class="lang-switch" href="{{ url_for('set_lang', code=other_lang) }}" title="{{ 'Switch to Korean' if lang == 'en' else '영어로 보기' }}" aria-label="{{ 'Switch to Korean' if lang == 'en' else '영어로 보기' }}">
-        {{ '한국어' if lang == 'en' else 'EN' }}
+        <span class="lang-long">{{ '한국어' if lang == 'en' else 'English' }}</span><span class="lang-short">{{ 'KO' if lang == 'en' else 'EN' }}</span>
       </a>
     </div>
   </nav>

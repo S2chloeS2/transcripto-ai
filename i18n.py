@@ -1,0 +1,371 @@
+"""Two-language UI: English by default, Korean on request.
+
+Templates were written in Korean first, so Korean is the *source* string and
+English is the translation. `_()` looks the Korean up and returns English
+unless the visitor has chosen Korean. A string with no entry falls back to
+itself, so an untranslated label never crashes a page — it just shows Korean,
+and `missing()` lists what still needs a translation.
+
+The choice is kept in the signed session cookie and switched with /lang/<code>.
+"""
+
+from flask import g, redirect, request, session, url_for
+
+LANGS = ("en", "ko")
+DEFAULT = "en"
+
+_missing = set()
+
+
+def current_lang():
+    if getattr(g, "lang", None):
+        return g.lang
+    lang = session.get("lang")
+    g.lang = lang if lang in LANGS else DEFAULT
+    return g.lang
+
+
+def _(text):
+    """Translate a Korean source string for the current language."""
+    if current_lang() == "ko":
+        return text
+    hit = TRANSLATIONS.get(text)
+    if hit is None:
+        _missing.add(text)
+        return text
+    return hit
+
+
+def missing():
+    return sorted(_missing)
+
+
+def init_app(app):
+    @app.route("/lang/<code>")
+    def set_lang(code):
+        if code in LANGS:
+            session["lang"] = code
+            session.permanent = True
+        target = request.referrer or url_for("landing")
+        # Only bounce back to our own pages.
+        if not target.startswith(request.host_url):
+            target = url_for("landing")
+        return redirect(target)
+
+    @app.context_processor
+    def inject_i18n():
+        return {"_": _, "lang": current_lang(), "other_lang": "ko" if current_lang() == "en" else "en"}
+
+
+# Korean source → English. Grouped by screen; keep sentences whole so they
+# translate naturally rather than word by word.
+TRANSLATIONS = {
+    # ---- nav / shared
+    "새 기록": "New note",
+    "지난 기록": "Notes",
+    "계정": "Account",
+    "로그아웃": "Log out",
+    "로그인": "Log in",
+    "무료로 시작하기": "Start free",
+    "남음": "left",
+    "시작하기": "Get started",
+    "삭제": "Delete",
+    "저장": "Save",
+    "보내기": "Send",
+    "내보내기": "Export",
+    "요약 만들기": "Summarize",
+    "강의": "Lecture",
+    "미팅": "Meeting",
+    "요약 있음": "Summarized",
+    "폴더 없음": "No folder",
+    "전체": "All",
+    "+ 새 폴더": "+ New folder",
+    "검색 결과가 없습니다.": "No matches.",
+    "찾으시는 페이지가 없습니다.": "That page does not exist.",
+    "번 기록을 찾을 수 없습니다. 삭제되었을 수 있습니다.": " — that note could not be found. It may have been deleted.",
+    "지난 기록 보기": "Back to notes",
+    "개인정보처리방침": "Privacy",
+    "이용약관": "Terms",
+
+    # ---- landing
+    "공부하는 사람을 위한 노트 친구": "A note-taking friend for people who study",
+    "듣는 동안,": "While you listen,",
+    "노트는 알아서": "the notes write",
+    "완성된다": "themselves",
+    "강의든 회의든 소리만 넘겨주면 받아적고, 요약하고, 낯선 용어를 풀어줍니다.": "Hand it the audio of a lecture or a meeting and it transcribes, summarizes, and explains the unfamiliar terms.",
+    "그 자리에서 나온 말에 대해서만": "only about what was actually said",
+    "답합니다.": "It answers",
+    "어떻게 되나요?": "How does it work?",
+    "카드 등록 없이 월 5시간 · 설치할 것 없음": "5 hours a month, no card · nothing to install",
+    "왜 이 노트를 믿을 수 있나": "Why you can trust these notes",
+    "대부분의 AI 노트 앱은 강의에 나오지도 않은 내용을 그럴듯하게 답합니다.": "Most AI note apps will confidently answer with things that were never said in the lecture.",
+    "편해 보이지만 시험 공부에 쓰면 위험합니다 — 틀린 것을 확신에 차서 말하기 때문입니다.": "That feels convenient and is dangerous for exam prep — it states wrong things with total confidence.",
+    "모르면 모른다고 합니다": "If it doesn't know, it says so",
+    "스크립트에 없는 질문에는 “오늘 다루지 않았습니다”라고 답합니다. 지어내는 대신에요.": "Ask about something not in the transcript and it replies “That didn't come up today.” Instead of making it up.",
+    "근거를 함께 보여줍니다": "It shows its evidence",
+    "답변마다 강의에서 실제로 나온 문장을 인용합니다. 맞는지 직접 확인할 수 있습니다.": "Every answer quotes the actual sentence from the lecture, so you can check it yourself.",
+    "과목별로 묶어서 질문": "Ask across a whole course",
+    "기록을 폴더에 모으면 한 학기 강의 전체에 한꺼번에 물을 수 있습니다. 어느 주차에서 나온 말인지 짚어줍니다.": "Group notes into a folder and question a semester's lectures at once. It tells you which week something came from.",
+    "그 자리에 맞는 요약": "Summaries that fit the room",
+    "강의는 주제별로, 회의는 결정사항과 담당자 중심으로. 일반적인 지식 요약이 아닙니다.": "Lectures by topic; meetings by decisions and owners. Not a generic knowledge summary.",
+    "생성형 AI 인터페이스 설계 · 3주차": "Designing Generative AI Interfaces · Week 3",
+    "나": "Me",
+    "그라운딩이 뭐라고 했어?": "What did they say grounding was?",
+    "모델의 답변을 검증 가능한 원본 문서에 묶는 기법이라고 했습니다.": "They described it as tying a model's answer to a verifiable source document.",
+    "“그라운딩의 핵심 이점은 사용자가 답변의 근거를 직접 확인할 수 있다는 것입니다.”": "“The key benefit of grounding is that the user can check the basis of the answer directly.”",
+    "오늘 BERT에 대해 뭐라고 했어?": "What did they say about BERT today?",
+    "그 부분은 오늘 수업에서 다루지 않았습니다.": "That wasn't covered in today's class.",
+    "첫 수업의 낯선 용어부터 기말 전 복습까지 —": "From the strange words of the first class to the review before finals —",
+    "듣는 사람은 이해에만 집중하고, 받아적는 일은 맡겨 두세요.": "you focus on understanding, and leave the writing down to us.",
+    "어디서 나는 소리든": "Sound from anywhere",
+    "강의실이든 화상 회의든, 지나간 유튜브 강의든. 브라우저만 있으면 됩니다.": "A classroom, a video call, a YouTube lecture from last year. All you need is a browser.",
+    "실시간": "Live",
+    "불러오기": "Import",
+    "컴퓨터 소리": "Computer audio",
+    "Zoom · 유튜브 · 온라인 강의": "Zoom · YouTube · online classes",
+    "방 안의 대화": "The room",
+    "강의실 · 대면 회의 · 인터뷰": "Classroom · in-person meeting · interview",
+    "링크 붙여넣기": "Paste a link",
+    "유튜브 · TED 강연": "YouTube · TED talks",
+    "녹음 파일": "Recording file",
+    "Zoom · Teams 로컬 녹음": "Zoom · Teams local recordings",
+    "화상 회의에 현장 참석자가 섞여 있다면": "If a video call has people in the room too,",
+    "컴퓨터 소리와 마이크를 함께": "capture computer audio and the mic together",
+    "담을 수도 있습니다.": ".",
+    "시작 버튼 하나면 끝입니다": "One button and you're done",
+    "나머지는 듣는 동안 알아서 쌓입니다. 끝나고 정리할 일이 없습니다.": "Everything else builds up while you listen. Nothing to tidy afterwards.",
+    "하나": "One", "둘": "Two", "셋": "Three", "넷": "Four",
+    "듣기": "Listen",
+    "소리가 어디서 나는지만 고르면 됩니다. 도중에 바꿔도 됩니다.": "Just pick where the sound comes from. You can switch mid-way.",
+    "자막이 쌓임": "Captions build up",
+    "말이 끝나는 대로 화면에 올라옵니다. 받아적을 필요가 없습니다.": "Sentences appear as soon as they're spoken. No need to write anything down.",
+    "요약과 용어": "Summary and terms",
+    "주제별로 정리되고, 용어를 누르면 그 강의에서 쓰인 맥락부터 설명합니다.": "Organized by topic; tap a term and it explains how it was used in that lecture first.",
+    "물어보기": "Ask",
+    "이해 안 된 부분을 그 자리에서 질문합니다. 나중에 다시 열어도 그대로 남아 있습니다.": "Ask about anything unclear right there. It's all still here when you come back.",
+    "회의를 위해": "For meetings",
+    "누가 무엇을 약속했는지": "Who promised what",
+    "회의 기록은 발언자가 빠지면 쓸모가 없습니다. 발언을 사람별로 나누고,": "Meeting notes are useless without the speaker. We split what was said by person",
+    "누가 얼마나 말했는지 보여줍니다. 이름은 직접 바꿀 수 있습니다.": "and show who spoke how much. You can rename them.",
+    "요약도 달라집니다.": "The summary changes too.",
+    "“이대리: 마케팅 예산 20% 증가 요청”": "“Lee: requested a 20% marketing budget increase”",
+    "처럼": " —",
+    "결정과 담당자를 짚어 정리합니다.": "it pins down decisions and owners.",
+    "발언 비중": "Talk time",
+    "이대리": "Lee", "김팀장": "Kim (lead)", "박연구원": "Park",
+    "요금": "Pricing",
+    "학생이 직접 낼 수 있는 값": "A price a student can pay",
+    "회사가 대신 내주는 가격이 아닙니다. 언제든 해지할 수 있습니다.": "Not a price a company pays for you. Cancel anytime.",
+    "무료": "Free", "스탠다드": "Standard", "프로": "Pro",
+    "원": "₩", "원 / 월": "₩ / mo",
+    "월 5시간": "5 hours / month", "월 25시간": "25 hours / month", "월 60시간": "60 hours / month",
+    "모든 입력 방식": "Every input mode",
+    "요약 · 키워드 · AI 챗": "Summary · keywords · AI chat",
+    "폴더로 묶어 한꺼번에 질문": "Ask across a folder",
+    "기록 30일 보관": "Notes kept 30 days",
+    "가장 많이 씁니다": "Most popular",
+    "무료의 모든 기능": "Everything in Free",
+    "기록 무제한 보관": "Notes kept forever",
+    "회의 화자 분리": "Speaker separation for meetings",
+    "마크다운 내보내기": "Markdown export",
+    "무료로 먼저 써보기": "Try it free first",
+    "스탠다드의 모든 기능": "Everything in Standard",
+    "긴 회의 우선 처리": "Priority for long meetings",
+    "개인정보 자동 가리기": "Automatic PII redaction",
+    "다음 수업부터,": "From your next class,",
+    "받아적지 마세요": "stop writing it down",
+    "듣는 데만 집중하세요. 노트는 끝날 때 이미 완성돼 있습니다.": "Just listen. The notes are finished by the time it ends.",
+    "녹음은 전사 직후 삭제됩니다": "Audio is deleted right after transcription",
+    "회의 녹음 시 참석자 동의를 확인하세요": "get consent before recording a meeting",
+
+    # ---- login
+    "다시 오셨네요": "Welcome back",
+    "기록은 계정에 저장되어, 다른 기기에서도 이어서 볼 수 있습니다.": "Your notes live in your account, so you can pick them up on any device.",
+    "구글 계정으로 계속하기": "Continue with Google",
+    "계속하면 이름과 이메일만 받아옵니다. 구글 비밀번호는 저희에게 전달되지 않습니다.": "We only receive your name and email. Your Google password never reaches us.",
+    "계속하면": "By continuing you agree to the",
+    "과": " and ",
+    "에 동의하는 것입니다.": ".",
+    "구글 로그인 설정이 필요합니다": "Google sign-in needs setting up",
+    "한 번만 등록하면 됩니다. 5분이면 끝납니다.": "A one-time registration. Five minutes.",
+    "로컬 테스트 계정으로 들어가기": "Enter with the local test account",
+    "구글 로그인에 실패했습니다. 다시 시도해주세요.": "Google sign-in failed. Please try again.",
+    "또는": "or",
+
+    # ---- new note
+    "무엇을 기록할까요?": "What are we recording?",
+    "소리가 어디서 나오는지 고르면 됩니다. 시작한 뒤에도 바꿀 수 있습니다.": "Pick where the sound comes from. You can change it after starting.",
+    "지금 바로 듣기": "Listen now",
+    "Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리만 담고 내 목소리는 담기지 않습니다.": "Zoom, YouTube, online classes. Captures what plays through your speakers, not your own voice.",
+    "강의실 수업, 대면 미팅, 인터뷰. 노트북 마이크로 주변 소리를 담습니다.": "Classroom lectures, in-person meetings, interviews. Uses your laptop mic.",
+    "둘 다 섞기": "Mix both",
+    "화상 회의에 현장 사람들이 섞여 있을 때. 화면 속 목소리와 옆자리 발언을 함께 담습니다.": "For a video call with people in the room. Captures the screen and the seat next to you together.",
+    "어떤 자리인가요?": "What kind of session?",
+    "강의는 주제별로, 미팅은 결정사항 중심으로 요약합니다.": "Lectures are summarized by topic, meetings by decisions.",
+    "입력 장치": "Input device",
+    "기본 마이크": "Default microphone",
+    "BlackHole 같은 가상 오디오 장치를 설치했다면 여기서 고르세요. 데스크톱 Zoom·Teams 소리를 직접 받을 수 있습니다.": "If you installed a virtual audio device like BlackHole, pick it here to capture desktop Zoom/Teams directly.",
+    "기록 시작": "Start recording",
+    "이미 있는 것 불러오기": "Import something you already have",
+    "가져오기": "Import",
+    "유튜브 등 공개 영상의 소리만 받아와 정리합니다. 긴 영상은 나눠서 처리하므로 시간이 걸립니다.": "Pulls just the audio from a public video and organizes it. Long videos are processed in parts and take a while.",
+    "녹음 파일 올리기": "Upload a recording",
+    "여기로 파일을 끌어다 놓으세요": "Drop a file here",
+    "m4a, mp3, wav, mp4 · Zoom·Teams의 로컬 녹음 파일이 여기 해당합니다": "m4a, mp3, wav, mp4 · Zoom and Teams local recordings go here",
+    "파일 고르기": "Choose a file",
+    "데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.": "If you use desktop Zoom or Teams, this is the most reliable way. No audio settings to touch.",
+    "미팅으로 올리면 발언자를 자동으로 나눠줍니다.": "Upload as a meeting and speakers are separated automatically.",
+    "화자 분리(누가 말했는지)는 아래 “녹음 파일 올리기”에서만 됩니다.": "Speaker separation (who said what) only works with “Upload a recording” below.",
+    "실시간 녹음은 소리를 짧게 잘라 처리해서, 조각 사이의 같은 사람을 이어 붙일 수 없습니다.": "Live recording processes audio in short clips, so the same person can't be tracked across clips.",
+    "발언자를 나누고 싶다면 회의를 녹음한 뒤 파일로 올려주세요.": "To separate speakers, record the meeting and upload the file.",
+    "공유 창이 뜨면 “Chrome 탭”을 고르고, 아래 “탭 오디오도 공유”를 꼭 켜주세요.": "When the share dialog appears, choose “Chrome Tab” and turn on “Share tab audio”.",
+    "macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를 공유하면 소리가 빠집니다.": "macOS doesn't give browsers system-wide audio, so sharing the whole screen drops the sound.",
+    "데스크톱 Zoom·Teams 앱을 쓴다면 회의를 녹음한 뒤 아래에서 파일로 올리는 쪽이 확실합니다.": "With the desktop Zoom/Teams app, recording the meeting and uploading the file below is the sure way.",
+    "준비 중…": "Preparing…",
+
+    # ---- session
+    "기록 제목": "Note title",
+    "마이크": "Microphone",
+    "컴퓨터 + 마이크": "Computer + mic",
+    "불러온 파일": "Imported file",
+    "녹음 중": "Recording",
+    "폴더": "Folder",
+    "폴더에 넣으면 폴더 단위로 한꺼번에 질문할 수 있습니다": "Put it in a folder to ask across the whole folder",
+    "녹음 시작": "Record",
+    "정지": "Stop",
+    "컴퓨터": "Computer",
+    "둘 다": "Both",
+    "준비됨": "Ready",
+    "다른 사람의 말을 녹음할 때는 미리 알리고 동의를 받아주세요. 소리는 텍스트로 바뀐 직후 삭제됩니다.": "Let people know and get consent before recording them. Audio is deleted as soon as it becomes text.",
+    "처리 중…": "Processing…",
+    "화자 분리가 꺼져 있습니다.": "Speaker separation is off.",
+    "누가 말했는지 나누려면": "To separate who said what you need an",
+    "가 필요합니다.": ".",
+    "지금 쓰는 OpenAI whisper는 화자를 구분하지 못합니다.": "The OpenAI Whisper engine in use can't tell speakers apart.",
+    "이 기록에는 화자 정보가 없습니다.": "This note has no speaker information.",
+    "실시간 녹음은 조각마다 따로 처리해서 화자를 이어 붙일 수 없습니다.": "Live recording processes each clip separately, so speakers can't be linked.",
+    "녹음 파일을 올리거나 링크로 가져오면 화자가 나뉩니다.": "Upload a recording or import a link and speakers will be separated.",
+    "이름을 눌러 실제 이름으로 바꿀 수 있습니다.": "Tap a name to change it to the real one.",
+    "스크립트": "Transcript",
+    "아직 받아적은 내용이 없습니다.": "Nothing transcribed yet.",
+    "녹음을 시작하면 여기에 쌓입니다.": "Start recording and it will fill up here.",
+    "요약": "Summary",
+    "핵심 용어": "Key terms",
+    "AI 챗": "AI chat",
+    "오늘 기록한 내용 안에서만 답합니다. 나오지 않은 내용은 모른다고 말합니다.": "Answers only from today's note. If something didn't come up, it says so.",
+    "AI": "AI",
+    "스크립트가 쌓이면 질문할 수 있습니다.": "Once there's a transcript you can ask questions.",
+    "오늘 내용에 대해 물어보세요": "Ask about today's note",
+
+    # ---- review / folders
+    "기록은 저장되므로 나중에 다시 열어 요약과 챗을 이어갈 수 있습니다.": "Notes are saved, so you can come back later and continue the summary and chat.",
+    "과목이나 프로젝트별로 폴더에 모으면": "Group them into folders by course or project and you can",
+    "폴더 전체에 한꺼번에 질문": "ask the whole folder at once",
+    "할 수 있습니다.": ".",
+    "이 폴더의 기록 전체를 대상으로 질문하려면": "To ask across everything in this folder,",
+    "폴더 열기 →": "open the folder →",
+    "제목·키워드·요약에서 찾기": "Search titles, keywords, summaries",
+    "기록 검색": "Search notes",
+    "개 구간": " segments",
+    "이 조건에 맞는 기록이 없습니다.": "No notes match this filter.",
+    "전체 보기": "Show all",
+    "아직 기록이 없습니다.": "No notes yet.",
+    "첫 기록 시작하기": "Start your first note",
+    "폴더 이름": "Folder name",
+    "개 기록": " notes",
+    "목록에서 보기": "View in list",
+    "폴더 삭제": "Delete folder",
+    "이 폴더의 기록": "Notes in this folder",
+    "아직 이 폴더에 넣은 기록이 없습니다.": "Nothing filed here yet.",
+    "에서 각 기록의 폴더를 고르면 여기에 모입니다.": " — pick a folder on each note and it will gather here.",
+    "폴더 전체에 질문": "Ask the whole folder",
+    "이 폴더의 모든 기록을 한꺼번에 봅니다. 어느 기록에서 나온 말인지 함께 알려주고, 나오지 않은 내용은 모른다고 답합니다.": "Looks at every note in this folder at once, tells you which note something came from, and says so when it didn't come up.",
+    "예: “3주차와 5주차에서 스케줄링을 어떻게 다르게 설명했어?”": "e.g. “How did weeks 3 and 5 explain scheduling differently?”",
+    "이 폴더의 내용에 대해 물어보세요": "Ask about this folder",
+
+    # ---- account
+    "이번 달 사용량": "This month's usage",
+    "플랜": "Plan",
+    "사용": "used",
+    "중": "of",
+    "사용량은 받아적은 오디오 길이로 계산합니다. 요약·키워드·챗은 따로 세지 않습니다.": "Usage counts the audio you transcribe. Summaries, keywords and chat are not metered.",
+    "매달 1일에 초기화됩니다.": "Resets on the 1st of each month.",
+    "현재 플랜": "Current plan",
+    "사용 중": "Current",
+    "이 플랜으로": "Switch to this plan",
+    "무료로 내리기": "Downgrade to Free",
+    "준비 중": "Coming soon",
+    "지금은 결제 연동 전이라 로컬 테스트용으로 플랜을 바로 바꿀 수 있습니다. 배포 환경에서는 이 버튼이 나타나지 않습니다.": "Payments aren't connected yet, so plans can be switched directly for local testing. This button does not appear in production.",
+    "결제 연동을 준비하고 있습니다. 준비되면 여기서 바로 바꿀 수 있습니다.": "Payments are on the way. You'll be able to switch plans right here.",
+    "계정 삭제": "Delete account",
+    "계정과 함께 모든 기록·요약·폴더·대화·사용량이": "Your account and every note, summary, folder, chat and usage record will be deleted",
+    "즉시, 되돌릴 수 없게": "immediately and irreversibly",
+    "삭제됩니다.": ".",
+    "남겨둘 기록이 있다면 먼저 각 기록에서 내보내기를 해주세요.": "Export any notes you want to keep first.",
+    "확인을 위해 ‘삭제’ 라고 입력": "Type DELETE to confirm",
+    "맛보기": "a taste",
+    "매일 수업 듣는 학생": "students in class every day",
+    "회의가 잦은 팀": "teams with frequent meetings",
+    "월": "",
+    "시간": " hours",
+
+    # ---- legal (titles only; body stays in the page's own language)
+    "마지막 수정: 2026년 9월 5일 · 이 문서는 초안이며 서비스 출시 전 법률 검토가 필요합니다.": "Last updated September 5, 2026 · This is a draft and needs legal review before launch.",
+
+    # ---- sentences that carry markup, kept whole so word order can change
+    "그리고 <strong>그 자리에서 나온 말에 대해서만</strong> 답합니다.": "And it answers <strong>only about what was actually said</strong>.",
+    "계속하면 <a href=\"{terms}\">이용약관</a>과 <a href=\"{privacy}\">개인정보처리방침</a>에 동의하는 것입니다.": "By continuing you agree to the <a href=\"{terms}\">Terms</a> and <a href=\"{privacy}\">Privacy Policy</a>.",
+    "과목이나 프로젝트별로 폴더에 모으면 <strong>폴더 전체에 한꺼번에 질문</strong>할 수 있습니다.": "Group notes into folders by course or project and you can <strong>ask the whole folder at once</strong>.",
+    "요약도 달라집니다. <strong>“이대리: 마케팅 예산 20% 증가 요청”</strong>처럼 결정과 담당자를 짚어 정리합니다.": "The summary changes too — <strong>“Lee: requested a 20% marketing budget increase”</strong> — it pins down decisions and their owners.",
+    "회의 기록은 발언자가 빠지면 쓸모가 없습니다. 발언을 사람별로 나누고, 누가 얼마나 말했는지 보여줍니다. 이름은 직접 바꿀 수 있습니다.": "Meeting notes are useless without the speaker. We split what was said by person and show who spoke how much. You can rename them.",
+    "화상 회의에 현장 참석자가 섞여 있다면 <strong>컴퓨터 소리와 마이크를 함께</strong> 담을 수도 있습니다.": "If a video call also has people in the room, you can capture <strong>computer audio and the microphone together</strong>.",
+    "첫 수업의 낯선 용어부터 기말 전 복습까지 —<br>듣는 사람은 이해에만 집중하고, 받아적는 일은 맡겨 두세요.": "From the strange words of the first class to the review before finals —<br>you focus on understanding, and leave the writing down to us.",
+    "듣는 동안,<br>노트는 알아서<br><span class=\"accent\">완성된다</span>": "While you listen,<br>the notes write<br><span class=\"accent\">themselves</span>",
+    "다음 수업부터,<br>받아적지 마세요": "From your next class,<br>stop writing it down",
+    "왜 이 노트를 믿을 수 있나": "Why you can trust these notes",
+    "계정과 함께 모든 기록·요약·폴더·대화·사용량이 <strong>즉시, 되돌릴 수 없게</strong> 삭제됩니다.": "Your account and every note, summary, folder, chat and usage record will be deleted <strong>immediately and irreversibly</strong>.",
+    "이 폴더의 기록 전체를 대상으로 질문하려면 <a href=\"{url}\"><strong>폴더 열기 →</strong></a>": "To ask across everything in this folder, <a href=\"{url}\"><strong>open the folder →</strong></a>",
+    "<a href=\"{url}\">지난 기록</a>에서 각 기록의 폴더를 고르면 여기에 모입니다.": "Pick a folder on each note in <a href=\"{url}\">Notes</a> and they will gather here.",
+    "누가 말했는지 나누려면 <code>ASSEMBLYAI_API_KEY</code>가 필요합니다.": "Separating who said what needs an <code>ASSEMBLYAI_API_KEY</code>.",
+    "다음 달 1일에 초기화되거나, <a href=\"{url}\">플랜을 올리면</a> 바로 이어서 쓸 수 있습니다. 지난 기록은 계속 열어볼 수 있습니다.": "It resets on the 1st, or <a href=\"{url}\">upgrade your plan</a> to keep going now. Your past notes stay available.",
+    "이번 달 {plan} 플랜의 {limit}을 다 썼습니다.": "You've used all {limit} of this month's {plan} plan.",
+    "이번 달 남은 시간이 <strong>{left}</strong>입니다. <a href=\"{url}\">계정</a>에서 사용량을 확인하세요.": "You have <strong>{left}</strong> left this month. Check usage in <a href=\"{url}\">Account</a>.",
+    "{n}개 기록": "{n} notes",
+    "{n}개 구간": "{n} segments",
+    "{plan} 플랜 · 월 {limit} 중 {used} 사용": "{plan} plan · {used} of {limit} used this month",
+
+    # ---- API errors & browser toasts
+    "기록을 찾을 수 없습니다.": "That note could not be found.",
+    "폴더를 찾을 수 없습니다.": "That folder could not be found.",
+    "그 폴더를 찾을 수 없습니다.": "That folder could not be found.",
+    "질문을 입력해주세요.": "Type a question first.",
+    "키워드를 지정해주세요.": "No keyword given.",
+    "폴더 이름을 입력해주세요.": "Give the folder a name.",
+    "확인 문구가 일치하지 않습니다.": "The confirmation text did not match.",
+    "없는 플랜입니다.": "No such plan.",
+    "결제 연동 전에는 플랜을 직접 바꿀 수 없습니다.": "Plans can't be changed by hand until payments are connected.",
+    "오디오 길이를 읽을 수 없습니다. 오디오·영상 파일이 맞는지 확인해주세요.": "Couldn't read the audio length. Make sure this is an audio or video file.",
+    "요청이 너무 잦습니다. {n}초 뒤 다시 시도해주세요.": "Too many requests. Try again in {n} seconds.",
+    "파일이 너무 큽니다. {n}MB 이하만 올릴 수 있습니다.": "That file is too large. The limit is {n} MB.",
+    "이번 달 {plan} 플랜의 {limit}을 다 썼습니다. 다음 달 1일에 초기화되거나, 플랜을 올리면 바로 이어서 쓸 수 있습니다.": "You've used all {limit} of this month's {plan} plan. It resets on the 1st, or upgrade to keep going now.",
+    "이 오디오는 {need}인데 남은 시간이 {left}입니다. 더 짧은 파일을 올리거나 플랜을 올려주세요.": "This audio is {need} but you have {left} left. Upload something shorter or upgrade your plan.",
+    "폴더에 넣었습니다.": "Filed.", "폴더에서 뺐습니다.": "Removed from folder.",
+    "이 기록을 삭제할까요? 되돌릴 수 없습니다.": "Delete this note? This can't be undone.",
+    "삭제하지 못했습니다.": "Couldn't delete.",
+    "폴더 이름 (예: 운영체제, 팀 회의)": "Folder name (e.g. Operating Systems, Team meetings)",
+    "이 폴더를 삭제할까요? 안의 기록은 지워지지 않고 폴더 밖으로 나옵니다.": "Delete this folder? The notes inside are kept — they just leave the folder.",
+    "요약하는 중…": "Summarizing…", "요약이 만들어졌습니다.": "Summary ready.",
+    "설명을 불러오는 중…": "Loading explanation…",
+    "듣는 중": "Listening", "정지됨": "Stopped", "받아적는 중…": "Transcribing…",
+    "소리를 받지 못했습니다.": "Couldn't capture audio.",
+    "링크를 붙여넣어 주세요.": "Paste a link first.", "링크를 확인하는 중…": "Checking the link…",
+    "올리는 중…": "uploading…", "처리에 실패했습니다.": "Processing failed.",
+    "제목 없음": "Untitled", "요청이 실패했습니다": "Request failed",
+    "확인 칸에 “삭제” 라고 입력해주세요.": "Type DELETE in the confirmation box.",
+    "정말 계정과 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.": "Really delete your account and all data? This can't be undone.",
+    "강의와 회의를 받아적고, 요약하고, 그 자리에서 나온 말에 대해서만 답하는 AI 노트. 지어내지 않습니다.": "An AI notebook that transcribes lectures and meetings, summarizes them, and answers only from what was actually said. It doesn't make things up.",
+    "듣는 동안, 노트는 알아서 완성된다. 강의든 회의든 소리만 넘겨주면 받아적고 요약합니다.": "While you listen, the notes write themselves. Hand it any lecture or meeting and it transcribes and summarizes.",
+    "듣는 동안 노트는 완성된다": "notes that write themselves",
+    "찾을 수 없음": "Not found",
+    "소리를 받을 곳": "Audio source", "기록 종류": "Session type", "소리 받을 곳": "Audio source", "화자": "Speaker",
+}

@@ -1,169 +1,127 @@
-# TranscriptoAI
+<p align="center">
+  <img src="static/images/story/hero.png" alt="A child in headphones writing in a notebook — watercolor" width="260">
+</p>
 
-**듣는 동안, 노트는 알아서 완성된다.**
+<h1 align="center">TranscriptoAI</h1>
+<p align="center"><strong>While you listen, the notes write themselves.</strong><br>
+An AI notebook for lectures and meetings that transcribes, summarizes, explains the hard words —
+and answers <em>only</em> from what was actually said.</p>
 
-강의든 미팅이든 소리만 넘겨주면 받아적고, 요약하고, 핵심 용어를 풀어줍니다.
-그리고 그 자리에서 나온 말에 대해서**만** 답합니다.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#how-it-is-built">How it's built</a> ·
+  <a href="#deploy">Deploy</a> ·
+  <a href="#한국어">한국어</a>
+</p>
 
 ---
 
-## 무엇을 하는가
+## Why this exists
 
-| 단계 | 내용 |
+Most AI note apps will happily answer questions with facts that were never in the lecture.
+That is worse than useless for studying — it is confidently wrong. TranscriptoAI treats the
+transcript as the **only** source of truth:
+
+> **You:** What did they say about BERT today?
+> **AI:** That wasn't covered in today's class.
+
+Every answer quotes the line it came from. Every summary is built from the words in the room.
+
+## What it does
+
+| | |
 |---|---|
-| **듣기** | 컴퓨터 소리, 마이크, 또는 둘 다. 링크·파일도 가능 |
-| **스크립트** | 말이 끝나는 대로 화면에 쌓임 |
-| **요약** | 강의는 주제별로, 미팅은 결정사항 중심으로 |
-| **키워드** | 누르면 그 강의에서 어떻게 쓰였는지부터 설명 |
-| **AI 챗** | 오늘 스크립트 안에서만 답변. 밖의 질문은 모른다고 말함 |
-| **리뷰** | SQLite에 저장되어 나중에 다시 열림 |
+| **Five ways in** | Computer audio (Zoom / YouTube tab), the room (mic), both mixed, a pasted link (YouTube · TED), or an uploaded recording (Zoom / Teams local files) |
+| **Live captions** | Audio is cut into ~6 s clips and transcribed as it comes; the running transcript primes the next clip so terminology stays consistent |
+| **Summaries that fit** | Lectures are organized by topic; meetings by decisions and who owns them |
+| **Key terms** | Extracted from the transcript; tap one for an explanation that starts with how *this* speaker used it. Saved, so it is instant next time |
+| **Grounded chat** | Answers only from the transcript, with quotes. Off-topic questions are refused in one sentence |
+| **Folders** | Group a course's lectures and ask across all of them — "How did weeks 3 and 5 explain scheduling differently?" — with the source lecture named |
+| **Speaker separation** | For uploaded meetings: who spoke, how much, and a summary that says who committed to what |
+| **Plans & metering** | Free 5 h / Standard 25 h / Pro 60 h per month, metered on transcribed audio only; overruns return a clear 402 |
+| **Two languages** | English by default, Korean with one click — UI, toasts, and API errors alike. AI output follows the language of the recording |
 
-## 소리를 받는 다섯 가지 방법
+Audio is never stored: it is deleted the moment it becomes text.
 
-### 실시간
+## Quick start
 
-| 모드 | 쓰는 때 | 방법 |
-|---|---|---|
-| **컴퓨터 소리** | Zoom 웹, 유튜브, 온라인 강의 | `getDisplayMedia` 탭 오디오 |
-| **방 안의 대화** | 강의실 수업, 대면 미팅 | `getUserMedia` 마이크 |
-| **둘 다 섞기** | 화상 회의 + 현장 참석자 | 두 트랙을 `AudioContext`로 합침 |
-
-컴퓨터 소리를 고르면 공유 창에서 **"Chrome 탭"**을 선택하고 **"탭 오디오도 공유"**를
-켜야 합니다. macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를
-공유하면 소리가 빠집니다.
-
-### 불러오기
-
-| 방식 | 쓰는 때 |
-|---|---|
-| **링크 붙여넣기** | 유튜브 등 공개 영상. 길면 나눠서 처리 |
-| **파일 올리기** | **데스크톱 Zoom·Teams의 로컬 녹음** |
-
-### 데스크톱 Zoom·Teams는 어떻게?
-
-세 가지 길이 있고, 아래로 갈수록 번거롭습니다.
-
-1. **회의를 녹음하고 파일을 올리기** — 가장 확실합니다. 오디오 설정을 전혀
-   건드리지 않습니다. Zoom과 Teams 둘 다 로컬 녹음 기능이 내장돼 있습니다.
-2. **웹 클라이언트를 탭에서 열기** — 실시간이 필요할 때. Teams 웹은 완성도가
-   높고, Zoom 웹은 일부 기능이 빠집니다.
-3. **가상 오디오 장치** — [BlackHole](https://existential.audio/blackhole/)을
-   설치하고 Audio MIDI 설정에서 다중 출력 장치를 만든 뒤, 앱의 입력 장치
-   목록에서 BlackHole을 고릅니다. 되돌리는 걸 잊으면 스피커가 고장난 것처럼
-   보이므로 주의하세요.
-
-## 실행
-
-`ffmpeg`이 필요합니다 (`brew install ffmpeg`).
+Requires Python 3.12+ and `ffmpeg` (`brew install ffmpeg`).
 
 ```bash
+git clone https://github.com/S2chloeS2/transcripto-ai && cd transcripto-ai
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env      # OpenAI 키를 넣으세요
-python app.py
+cp .env.example .env            # add OPENAI_API_KEY (required) and ASSEMBLYAI_API_KEY (recommended)
+python check_keys.py            # confirms each key works and which engine will be used
+python app.py                   # http://127.0.0.1:5001
 ```
 
-http://127.0.0.1:5001 — 5000이 아닌 이유는 macOS AirPlay가 그 포트를 씁니다.
+For local development without Google OAuth, set `ALLOW_DEV_LOGIN=1` in `.env`; a test-account
+button appears on the login page. It is refused outright when `FLASK_ENV=production`.
 
-### 설정
-
-| 변수 | 기본값 | 용도 |
-|---|---|---|
-| `OPENAI_API_KEY` | *(필수)* | 전사·요약·키워드·챗 전부 |
-| `CHAT_MODEL` | `gpt-4o-mini` | 요약과 챗에 쓰는 모델 |
-| `PORT` | `5001` | 서버 포트 |
-| `DB_PATH` | `./transcripto.db` | SQLite 파일 위치 |
-| `CHUNK_SECONDS` | `600` | 불러온 오디오를 자르는 길이 |
-| `MAX_DURATION` | `14400` | 링크로 받을 수 있는 최대 길이 (4시간) |
-
-로컬 Whisper나 `torch`는 필요 없습니다. 전사도 OpenAI가 처리합니다.
-
-## 구조
+## How it is built
 
 ```
-app.py                 Flask 라우트와 링크·파일 처리 파이프라인
-ai.py                  OpenAI 호출. 챗을 스크립트 안으로 묶는 프롬프트가 여기 있음
-db.py                  SQLite. 세션 · 스크립트 구간 · 챗 기록
-media.py               yt-dlp 다운로드와 ffmpeg 분할
-static/js/capture.js   세 가지 입력 소스를 하나의 인터페이스로
+app.py        Flask routes, import pipeline, production guards, per-user rate limit
+ai.py         OpenAI prompts — grounding rules, language matching, folder retrieval
+engines.py    Transcription back ends behind one interface (AssemblyAI · Groq · OpenAI)
+db.py         SQLite: users, sessions, segments, folders, keyword notes, usage
+plans.py      Plan definitions and monthly allowance checks
+i18n.py       Korean-source → English translation table, per-visitor language
+media.py      yt-dlp download (TED → YouTube fallback), ffmpeg split, SSRF guard
+static/js/    capture.js (three audio sources, one interface) · session · folder · new
 ```
 
-## 배포 (실제 서비스로 내놓기)
+A few decisions worth knowing:
 
-로컬은 `python app.py`, 배포는 **gunicorn** 으로 돕니다 (`Procfile`).
-가장 간단한 길은 [Render](https://render.com) 입니다 — `render.yaml` 이 들어 있어
-저장소를 연결하면 디스크·환경변수까지 한 번에 만들어집니다.
+- **Per-clip recording** rather than one long stream: each clip carries its own container
+  header, so the server can decode it alone and show text within seconds.
+- **Engine selection by session type.** Lectures go to the cheapest engine; meetings go to
+  AssemblyAI for speaker labels. Keys that are absent simply fall back to OpenAI.
+- **Folder chat without embeddings.** Every summary in the folder goes in; then segments are
+  ranked by term overlap with the question. A dozen lectures fit the context window and the
+  answer can still quote the exact line.
+- **Whisper hallucination filter.** Silence and music make Whisper invent phrases; the common
+  ones are dropped before they reach a summary.
+- **Ownership on every route.** A note that isn't yours returns 404, not 403 — a stranger
+  can't learn it exists.
 
-1. GitHub 저장소를 Render 에 연결 → "Blueprint" 로 `render.yaml` 인식
-2. 대시보드에서 비밀 값 4개 입력: `OPENAI_API_KEY`, `ASSEMBLYAI_API_KEY`,
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (`SECRET_KEY` 는 자동 생성)
-3. 구글 콘솔의 승인된 리디렉션 URI 에 `https://<your-domain>/auth/callback` 추가
-4. 배포 후 `https://<your-domain>/` 접속
+## Deploy
 
-`FLASK_ENV=production` 이면 앱이 스스로 확인합니다:
-`ALLOW_DEV_LOGIN=1` 이거나 `SECRET_KEY`·구글 자격증명이 없으면 **시작을 거부**합니다.
-보안 쿠키(Secure), 요청 제한(기본 분당 90회/사용자), 업로드 상한, 내부망 차단은
-항상 켜져 있습니다.
+`Procfile` (gunicorn) and `render.yaml` are included — connect the repo on
+[Render](https://render.com), add four secrets (`OPENAI_API_KEY`, `ASSEMBLYAI_API_KEY`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), and register
+`https://<your-domain>/auth/callback` in Google Cloud Console.
 
-### 백업
+With `FLASK_ENV=production` the app refuses to start if dev login is enabled or a secret is
+missing. Rate limiting, upload caps, private-network blocking, and secure cookies are always on.
+`scripts/backup_db.sh` snapshots SQLite safely while running.
 
-SQLite 파일 하나가 전부입니다. `scripts/backup_db.sh` 가 실행 중에도 안전하게
-스냅샷을 만들고 최근 14개를 보관합니다. Render 에서는 Cron Job 으로 매일 돌리세요.
-**복원을 한 번은 실제로 해보세요** — 해보지 않은 백업은 백업이 아닙니다.
+**Not yet wired:** payments (plan structure and metering are complete; Toss/Stripe is the next
+step) and a hosted URL.
 
-### 출시 전에 사람이 해야 하는 것
+## Status
 
-| 항목 | 상태 | 누가 |
-|---|---|---|
-| 공개 URL(호스팅) | 없음 | 계정 필요 — Render 권장 |
-| 구글 로그인 | 자격증명은 있으나 리디렉션 URI 불일치 | 구글 콘솔에서 URI 추가 |
-| 결제 | 미연동 (플랜·사용량 구조는 완성) | 토스페이먼츠/Stripe 계정 |
-| 개인정보처리방침·이용약관 | 초안 있음 (`/privacy`, `/terms`) | 법률 검토, 연락처 교체 |
-| 예전에 유출된 OpenAI 키 3개 | 미폐기 | platform.openai.com 에서 Revoke |
+Built as a course project at Columbia University (*Designing for Generative AI*, Fall 2024),
+then rebuilt for real use in 2026. Development history, including the approaches that did not
+work, lives in [`transcripto-ai-archive`](https://github.com/S2chloeS2/transcripto-ai-archive).
 
-## 폴더 — 과목 단위로 묶어서 질문
+Illustrations are original watercolor-style images generated for this project.
 
-기록을 폴더(예: "운영체제", "팀 회의")에 넣으면 폴더 페이지에서 **그 안의 모든
-기록을 한꺼번에** 물어볼 수 있습니다. "3주차와 5주차에서 스케줄링을 어떻게
-다르게 설명했어?" 같은 질문에, 어느 기록에서 나온 말인지 짚어 답합니다.
+---
 
-폴더 챗은 전체 스크립트를 통째로 넣지 않습니다. 각 기록의 요약은 모두 넣고,
-질문과 겹치는 용어가 많은 구절을 골라 붙입니다 (`ai.build_folder_material`).
-그래서 열 몇 개 강의가 든 폴더도 모델 창 안에 들어가고, 답에 원문을 인용할 수
-있습니다.
+## 한국어
 
-## 플랜과 사용 시간
+**듣는 동안, 노트는 알아서 완성된다.** 강의와 회의를 받아적고, 요약하고, 낯선 용어를
+풀어주며, **그 자리에서 나온 말에 대해서만** 답하는 AI 노트입니다.
 
-전사한 **오디오 길이(분)** 만 셉니다. 요약·키워드·챗은 따로 세지 않습니다.
-매달 1일 UTC에 초기화됩니다.
+- **다섯 가지 입력** — 컴퓨터 소리(Zoom·유튜브 탭) · 마이크 · 둘 다 · 링크(유튜브·TED) · 녹음 파일(Zoom·Teams)
+- **근거 있는 챗** — 스크립트에 없는 질문엔 "오늘 다루지 않았습니다"로 거부, 있는 건 원문 인용
+- **폴더 챗** — 과목 단위로 묶어 한 학기 강의 전체에 한꺼번에 질문, 어느 주차에서 나온 말인지 표시
+- **화자 분리** — 업로드한 회의는 발언자별로 나뉘고, 요약이 "누가 무엇을 약속했는지"를 짚음
+- **플랜·사용량** — 무료 5h / 스탠다드 25h / 프로 60h, 전사한 오디오 길이만 계량
+- **영어 기본 · 한국어 전환** — 상단 버튼 한 번으로 화면·알림·API 오류까지 전부
 
-| 플랜 | 월 한도 | 가격 |
-|---|---|---|
-| 무료 | 5시간 | 0원 |
-| 스탠다드 | 25시간 | 11,900원 |
-| 프로 | 60시간 | 24,900원 |
-
-한도를 넘는 요청은 402로 거절되고, 남은 시간이 얼마인지 함께 알려줍니다.
-결제는 아직 연동되지 않았습니다 — 로컬 개발(`ALLOW_DEV_LOGIN=1`)에서만 계정
-페이지에서 플랜을 바꿔 볼 수 있고, 배포 환경에서는 그 버튼이 나타나지 않습니다.
-
-## 지원하는 링크
-
-유튜브(일반·Shorts)는 그대로 됩니다. **TED 링크**는 yt-dlp의 TED 추출기가
-현재 깨져 있어서, 주소를 받으면 유튜브 TED 채널에서 같은 강연을 찾아 가져옵니다.
-어떤 영상이 잡혔는지 제목이 그대로 보이니 다른 강연이면 유튜브 링크를 직접
-넣어주세요.
-
-### 알아둘 점
-
-- **오디오는 6초 단위로 잘라 보냅니다.** 매번 녹음기를 껐다 켜서 각 조각이
-  자기 헤더를 갖게 합니다. 이어붙인 조각은 단독으로 디코딩되지 않기 때문입니다.
-  직전까지의 스크립트를 Whisper에 힌트로 넘겨 용어가 조각 경계에서 흔들리지
-  않게 합니다.
-- **Whisper는 침묵과 음악에 대고 말을 지어냅니다.** "Thank you", "시청해주셔서
-  감사합니다" 같은 상투적 문구가 대표적이라 `ai.py`에서 걸러냅니다.
-- **요약 JSON의 모양이 일정하지 않습니다.** 마크다운 문자열을 요청해도 가끔
-  중첩 객체로 돌아와서, `_as_markdown()`이 어떤 모양이든 마크다운으로 폅니다.
-- **요약은 메모리가 아니라 SQLite에 저장됩니다.** 재시작해도 남습니다.
-
-개발 과정 기록은 `../transcripto-ai-archive`에 있습니다.
+실행은 위 *Quick start* 와 같습니다. 배포·백업·출시 전 체크리스트는 *Deploy* 절을 보세요.
+오디오는 텍스트로 바뀐 직후 삭제되며 서버에 남지 않습니다.

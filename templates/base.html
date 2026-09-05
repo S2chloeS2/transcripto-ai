@@ -1,19 +1,19 @@
 <!doctype html>
-<html lang="ko">
+<html lang="{{ lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TranscriptoAI{% endblock %}</title>
-  <meta name="description" content="강의와 회의를 받아적고, 요약하고, 그 자리에서 나온 말에 대해서만 답하는 AI 노트. 지어내지 않습니다.">
+  <meta name="description" content="{{ _('강의와 회의를 받아적고, 요약하고, 그 자리에서 나온 말에 대해서만 답하는 AI 노트. 지어내지 않습니다.') }}">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="TranscriptoAI">
   <meta property="og:title" content="{{ self.title() }}">
-  <meta property="og:description" content="듣는 동안, 노트는 알아서 완성된다. 강의든 회의든 소리만 넘겨주면 받아적고 요약합니다.">
-  <meta property="og:image" content="{{ url_for('static', filename='images/story/hero.jpg', _external=True) }}">
+  <meta property="og:description" content="{{ _('듣는 동안, 노트는 알아서 완성된다. 강의든 회의든 소리만 넘겨주면 받아적고 요약합니다.') }}">
+  <meta property="og:image" content="{{ url_for('static', filename='images/story/hero.png', _external=True) }}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#FBF8F1">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4c15 0 29 10 29 26S49 60 32 60 3 48 3 30 17 4 32 4z' fill='%23B9D1AA'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%237FA36F'/%3E%3C/svg%3E">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/story/owl-reading.jpg') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/story/owl-reading.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
@@ -26,36 +26,74 @@
     </a>
     <div class="nav-links">
       {% if current_user %}
-        <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">새 기록</a>
-        <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">지난 기록</a>
+        <a class="nav-link {{ 'is-active' if active == 'new' }}" href="{{ url_for('new_session') }}">{{ _('새 기록') }}</a>
+        <a class="nav-link {{ 'is-active' if active == 'review' }}" href="{{ url_for('review') }}">{{ _('지난 기록') }}</a>
         {% if allowance %}
         <a class="usage-pill {{ 'is-low' if allowance.used_pct >= 85 }}" href="{{ url_for('account') }}"
-           title="{{ allowance.plan.name }} · 이번 달 {{ allowance.used_label }} / {{ allowance.limit_label }}">
+           title="{{ allowance.plan.name }} · {{ allowance.used_label }} / {{ allowance.limit_label }}">
           <span class="usage-track"><span class="usage-fill" style="width:{{ allowance.used_pct }}%"></span></span>
-          <span>{{ allowance.remaining_label }} 남음</span>
+          <span>{{ allowance.remaining_label }} {{ _('남음') }}</span>
         </a>
         {% endif %}
         <div class="nav-user">
-          <a class="nav-avatar" href="{{ url_for('account') }}" title="{{ current_user.email }} · 계정" aria-label="계정">
+          <a class="nav-avatar" href="{{ url_for('account') }}" title="{{ current_user.email }} · {{ _('계정') }}" aria-label="{{ _('계정') }}">
             {% if current_user.picture %}
               <img src="{{ current_user.picture }}" alt="" referrerpolicy="no-referrer">
             {% else %}
               {{ (current_user.name or current_user.email)[0]|upper }}
             {% endif %}
           </a>
-          <a class="nav-link {{ 'is-active' if active == 'account' }}" href="{{ url_for('account') }}">계정</a>
-          <a class="nav-link" href="{{ url_for('auth.logout') }}">로그아웃</a>
+          <a class="nav-link {{ 'is-active' if active == 'account' }}" href="{{ url_for('account') }}">{{ _('계정') }}</a>
+          <a class="nav-link" href="{{ url_for('auth.logout') }}">{{ _('로그아웃') }}</a>
         </div>
       {% else %}
-        <a class="nav-link" href="{{ url_for('auth.login') }}">로그인</a>
-        <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">무료로 시작하기</a>
+        <a class="nav-link" href="{{ url_for('auth.login') }}">{{ _('로그인') }}</a>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">{{ _('무료로 시작하기') }}</a>
       {% endif %}
+      <a class="lang-switch" href="{{ url_for('set_lang', code=other_lang) }}" title="{{ 'Switch to Korean' if lang == 'en' else '영어로 보기' }}" aria-label="{{ 'Switch to Korean' if lang == 'en' else '영어로 보기' }}">
+        {{ '한국어' if lang == 'en' else 'EN' }}
+      </a>
     </div>
   </nav>
 
   {% block body %}{% endblock %}
 
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <script>
+    // Strings the browser-side code needs, in the visitor's language.
+    window.I18N = {
+      lang: "{{ lang }}",
+      filed: "{{ _('폴더에 넣었습니다.') }}",
+      unfiled: "{{ _('폴더에서 뺐습니다.') }}",
+      deleteConfirm: "{{ _('이 기록을 삭제할까요? 되돌릴 수 없습니다.') }}",
+      deleteFailed: "{{ _('삭제하지 못했습니다.') }}",
+      folderPrompt: "{{ _('폴더 이름 (예: 운영체제, 팀 회의)') }}",
+      folderDeleteConfirm: "{{ _('이 폴더를 삭제할까요? 안의 기록은 지워지지 않고 폴더 밖으로 나옵니다.') }}",
+      summarizing: "{{ _('요약하는 중…') }}",
+      summarized: "{{ _('요약이 만들어졌습니다.') }}",
+      loadingExplanation: "{{ _('설명을 불러오는 중…') }}",
+      listening: "{{ _('듣는 중') }}",
+      stopped: "{{ _('정지됨') }}",
+      transcribing: "{{ _('받아적는 중…') }}",
+      micFailed: "{{ _('소리를 받지 못했습니다.') }}",
+      pasteLink: "{{ _('링크를 붙여넣어 주세요.') }}",
+      checkingLink: "{{ _('링크를 확인하는 중…') }}",
+      uploading: "{{ _('올리는 중…') }}",
+      processing: "{{ _('처리 중…') }}",
+      processFailed: "{{ _('처리에 실패했습니다.') }}",
+      me: "{{ _('나') }}",
+      ai: "AI",
+      untitled: "{{ _('제목 없음') }}",
+      sourceNames: { system: "{{ _('컴퓨터 소리') }}", mic: "{{ _('마이크') }}", both: "{{ _('컴퓨터 + 마이크') }}" },
+      exportSummary: "{{ _('요약') }}", exportKeywords: "{{ _('핵심 용어') }}", exportTranscript: "{{ _('스크립트') }}",
+      typeDelete: "{{ _('확인 칸에 “삭제” 라고 입력해주세요.') }}",
+      deleteWord: "{{ _('삭제') }}",
+      accountDeleteConfirm: "{{ _('정말 계정과 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.') }}",
+      requestFailed: "{{ _('요청이 실패했습니다') }}",
+      defaultMic: "{{ _('기본 마이크') }}",
+      inputDevice: "{{ _('입력 장치') }}"
+    };
+  </script>
   <script src="{{ url_for('static', filename='js/common.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>

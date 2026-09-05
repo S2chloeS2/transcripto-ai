@@ -81,22 +81,32 @@ def check(user_id, needed_s, user=None):
     if needed_s <= a["remaining_s"]:
         return True, "", a
     if a["remaining_s"] <= 0:
-        msg = (f"이번 달 {a['plan']['name']} 플랜의 {a['limit_label']}을 다 썼습니다. "
-               f"다음 달 1일에 초기화되거나, 플랜을 올리면 바로 이어서 쓸 수 있습니다.")
+        import i18n
+        msg = i18n._("이번 달 {plan} 플랜의 {limit}을 다 썼습니다. 다음 달 1일에 초기화되거나, 플랜을 올리면 바로 이어서 쓸 수 있습니다.").format(
+            plan=i18n._(a['plan']['name']), limit=a['limit_label'])
     else:
-        msg = (f"이 오디오는 {_label(needed_s)}인데 남은 시간이 {a['remaining_label']}입니다. "
-               f"더 짧은 파일을 올리거나 플랜을 올려주세요.")
+        import i18n
+        msg = i18n._("이 오디오는 {need}인데 남은 시간이 {left}입니다. 더 짧은 파일을 올리거나 플랜을 올려주세요.").format(
+            need=_label(needed_s), left=a['remaining_label'])
     return False, msg, a
 
 
 def _label(seconds):
+    """Human duration in the visitor's language: '4시간 59분' / '4h 59m'."""
     seconds = int(round(seconds or 0))
     h, rem = divmod(seconds, 3600)
     m = rem // 60
-    if h and m:
-        return f"{h}시간 {m}분"
-    if h:
-        return f"{h}시간"
-    if m:
-        return f"{m}분"
-    return f"{seconds}초" if seconds else "0분"
+    try:
+        import i18n
+        ko = i18n.current_lang() == "ko"
+    except Exception:  # outside a request (scripts, tests)
+        ko = True
+    if ko:
+        if h and m: return f"{h}시간 {m}분"
+        if h: return f"{h}시간"
+        if m: return f"{m}분"
+        return f"{seconds}초" if seconds else "0분"
+    if h and m: return f"{h}h {m}m"
+    if h: return f"{h}h"
+    if m: return f"{m} min"
+    return f"{seconds}s" if seconds else "0 min"

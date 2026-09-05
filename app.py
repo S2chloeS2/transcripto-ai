@@ -25,6 +25,7 @@ import ai
 import auth
 import db
 import engines
+import i18n
 import media
 import plans
 
@@ -46,6 +47,7 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024
 
 db.init()
 auth.init_app(app)
+i18n.init_app(app)
 
 
 @app.context_processor
@@ -99,7 +101,7 @@ def throttle_api():
             window.popleft()
         if len(window) >= RATE_LIMIT:
             retry = int(60 - (now - window[0])) + 1
-            resp = jsonify({"error": f"요청이 너무 잦습니다. {retry}초 뒤 다시 시도해주세요."})
+            resp = jsonify({"error": i18n._("요청이 너무 잦습니다. {n}초 뒤 다시 시도해주세요.").format(n=retry)})
             resp.status_code = 429
             resp.headers["Retry-After"] = str(retry)
             return resp
@@ -253,7 +255,7 @@ def api_create_session():
     body = request.get_json(silent=True) or {}
     source = body.get("source", "mic")
     if source not in {"system", "mic", "both", "link"}:
-        return fail("Unknown source. Use system, mic, both, or link.")
+        return fail(i18n._("Unknown source. Use system, mic, both, or link."))
 
     kind = body.get("kind", "lecture")
     title = (body.get("title") or "").strip() or ("Meeting" if kind == "meeting" else "Lecture")
@@ -267,7 +269,7 @@ def api_create_session():
 @auth.login_required
 def api_modify_session(session_id):
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
 
     if request.method == "DELETE":
         db.delete_session(session_id)
@@ -284,7 +286,7 @@ def api_modify_session(session_id):
         elif str(target).isdigit() and owned_folder(int(target)):
             fields["folder_id"] = int(target)
         else:
-            return fail("그 폴더를 찾을 수 없습니다.", 404)
+            return fail(i18n._("그 폴더를 찾을 수 없습니다."), 404)
 
     db.update_session(session_id, **fields)
     return jsonify({"ok": True})
@@ -297,7 +299,7 @@ def api_modify_session(session_id):
 def api_create_folder():
     name = ((request.get_json(silent=True) or {}).get("name") or "").strip()[:80]
     if not name:
-        return fail("폴더 이름을 입력해주세요.")
+        return fail(i18n._("폴더 이름을 입력해주세요."))
     folder_id = db.create_folder(auth.current_user()["id"], name)
     return jsonify({"id": folder_id, "name": name, "url": url_for("folder_view", folder_id=folder_id)})
 
@@ -306,13 +308,13 @@ def api_create_folder():
 @auth.login_required
 def api_modify_folder(folder_id):
     if not owned_folder(folder_id):
-        return fail("폴더를 찾을 수 없습니다.", 404)
+        return fail(i18n._("폴더를 찾을 수 없습니다."), 404)
     if request.method == "DELETE":
         db.delete_folder(folder_id)
         return jsonify({"ok": True})
     name = ((request.get_json(silent=True) or {}).get("name") or "").strip()[:80]
     if not name:
-        return fail("폴더 이름을 입력해주세요.")
+        return fail(i18n._("폴더 이름을 입력해주세요."))
     db.rename_folder(folder_id, name)
     return jsonify({"ok": True})
 
@@ -322,10 +324,10 @@ def api_modify_folder(folder_id):
 def api_folder_chat(folder_id):
     """Ask across every recording in the folder — a whole course at once."""
     if not owned_folder(folder_id):
-        return fail("폴더를 찾을 수 없습니다.", 404)
+        return fail(i18n._("폴더를 찾을 수 없습니다."), 404)
     question = ((request.get_json(silent=True) or {}).get("message") or "").strip()
     if not question:
-        return fail("질문을 입력해주세요.")
+        return fail(i18n._("질문을 입력해주세요."))
     try:
         reply = ai.answer_folder(
             question, db.folder_corpus(folder_id), history=db.get_folder_messages(folder_id)
@@ -346,10 +348,10 @@ def api_set_plan():
     """Switch plans by hand. Only while payment is not wired up, and only on a
     local dev build — a deployed server refuses this outright."""
     if not auth.dev_login_allowed():
-        return fail("결제 연동 전에는 플랜을 직접 바꿀 수 없습니다.", 403)
+        return fail(i18n._("결제 연동 전에는 플랜을 직접 바꿀 수 없습니다."), 403)
     plan = ((request.get_json(silent=True) or {}).get("plan") or "").strip()
     if plan not in plans.PLANS:
-        return fail("없는 플랜입니다.")
+        return fail(i18n._("없는 플랜입니다."))
     db.set_plan(auth.current_user()["id"], plan)
     return jsonify({"ok": True, "plan": plan})
 
@@ -361,17 +363,17 @@ def api_set_plan():
 def api_transcribe(session_id):
     """Accept one audio clip from the browser and return its text."""
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
 
     clip = request.files.get("file")
     if not clip:
-        return fail("No audio was attached.")
+        return fail(i18n._("No audio was attached."))
 
     data = clip.read()
     if not data:
-        return fail("The audio clip was empty.")
+        return fail(i18n._("The audio clip was empty."))
     if len(data) > ai.MAX_UPLOAD_BYTES:
-        return fail("That clip is too large. Keep clips under 24 MB.")
+        return fail(i18n._("That clip is too large. Keep clips under 24 MB."))
 
     user = auth.current_user()
     suffix = os.path.splitext(clip.filename or "")[1] or ".webm"
@@ -420,7 +422,7 @@ def api_import():
     body = request.get_json(silent=True) or {}
     url = (body.get("url") or "").strip()
     if not ai.looks_like_url(url):
-        return fail("That does not look like a link. It should start with http.")
+        return fail(i18n._("That does not look like a link. It should start with http."))
 
     try:
         info = media.probe(url)
@@ -462,7 +464,7 @@ def api_import_file():
     ffmpeg can decode — and run it through the same pipeline as a link."""
     upload = request.files.get("file")
     if not upload or not upload.filename:
-        return fail("No file was attached.")
+        return fail(i18n._("No file was attached."))
 
     workdir = media.workspace()
     suffix = os.path.splitext(upload.filename)[1] or ".m4a"
@@ -471,12 +473,12 @@ def api_import_file():
 
     if os.path.getsize(path) == 0:
         shutil.rmtree(workdir, ignore_errors=True)
-        return fail("That file is empty.")
+        return fail(i18n._("That file is empty."))
 
     seconds = media.duration_of(path)
     if seconds <= 0:
         shutil.rmtree(workdir, ignore_errors=True)
-        return fail("오디오 길이를 읽을 수 없습니다. 오디오·영상 파일이 맞는지 확인해주세요.")
+        return fail(i18n._("오디오 길이를 읽을 수 없습니다. 오디오·영상 파일이 맞는지 확인해주세요."))
 
     user = auth.current_user()
     ok, message, allowance = plans.check(user["id"], seconds, user)
@@ -568,7 +570,7 @@ def api_progress(session_id):
     # Ownership first: progress leaks a session's title and state otherwise.
     session = owned(session_id)
     if not session:
-        return fail("기록을 찾을 수 없습니다.", 404)
+        return fail(i18n._("기록을 찾을 수 없습니다."), 404)
     job = get_job(session_id)
     if job:
         return jsonify(job)
@@ -597,7 +599,7 @@ def _build_summary(session_id):
 @auth.login_required
 def api_summary(session_id):
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
     try:
         _build_summary(session_id)
     except ValueError as exc:
@@ -618,10 +620,10 @@ def api_summary(session_id):
 @auth.login_required
 def api_keyword(session_id):
     if not owned(session_id):
-        return fail("기록을 찾을 수 없습니다.", 404)
+        return fail(i18n._("기록을 찾을 수 없습니다."), 404)
     keyword = (request.args.get("q") or "").strip()
     if not keyword:
-        return fail("키워드를 지정해주세요.")
+        return fail(i18n._("키워드를 지정해주세요."))
     # Already looked up once? Serve the saved note — no second model call.
     cached = db.get_keyword_notes(session_id).get(keyword)
     if cached:
@@ -646,11 +648,11 @@ def api_keyword(session_id):
 @auth.login_required
 def api_chat(session_id):
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
 
     question = ((request.get_json(silent=True) or {}).get("message") or "").strip()
     if not question:
-        return fail("Type a question first.")
+        return fail(i18n._("Type a question first."))
 
     transcript = db.get_transcript(session_id)
     try:
@@ -669,7 +671,7 @@ def api_chat(session_id):
 def api_speakers(session_id):
     """Read talk-time per speaker, or rename one."""
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
 
     if request.method == "PATCH":
         body = request.get_json(silent=True) or {}
@@ -687,7 +689,7 @@ def api_speakers(session_id):
 @auth.login_required
 def api_transcript(session_id):
     if not owned(session_id):
-        return fail("No such session.", 404)
+        return fail(i18n._("No such session."), 404)
     return jsonify({"segments": db.get_segments(session_id)})
 
 
@@ -713,7 +715,7 @@ def api_delete_account():
     """Erase the account and everything under it. Irreversible by design."""
     body = request.get_json(silent=True) or {}
     if body.get("confirm") != "삭제":
-        return fail("확인 문구가 일치하지 않습니다.")
+        return fail(i18n._("확인 문구가 일치하지 않습니다."))
     user = auth.current_user()
     db.delete_user(user["id"])
     from flask import session as flask_session
@@ -724,7 +726,7 @@ def api_delete_account():
 @app.errorhandler(413)
 def too_large(_):
     limit = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
-    return fail(f"파일이 너무 큽니다. {limit}MB 이하만 올릴 수 있습니다.", 413)
+    return fail(i18n._("파일이 너무 큽니다. {n}MB 이하만 올릴 수 있습니다.").format(n=limit), 413)
 
 
 @app.errorhandler(404)

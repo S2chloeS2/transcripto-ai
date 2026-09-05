@@ -1,4 +1,5 @@
 /* Mode picker and imports on the "새 기록" screen. */
+const T = window.I18N;
 
 let source = 'mic';
 let kind = 'lecture';
@@ -40,15 +41,15 @@ document.querySelectorAll('.seg-btn[data-kind]').forEach((btn) => {
 // Wrapped so a device-enumeration failure cannot take the rest of the page
 // down with it — the picker is a convenience, the start button is not.
 (async () => {
-  deviceSelect.innerHTML = '<option value="">기본 마이크</option>';
+  deviceSelect.innerHTML = `<option value="">${T.defaultMic}</option>`;
   try {
     const devices = await listAudioInputs();
     deviceSelect.innerHTML =
-      '<option value="">기본 마이크</option>' +
+      `<option value="">${T.defaultMic}</option>` +
       devices
         .map(
           (d, i) =>
-            `<option value="${d.deviceId}">${escapeHtml(d.label || `입력 장치 ${i + 1}`)}</option>`
+            `<option value="${d.deviceId}">${escapeHtml(d.label || `${T.inputDevice} ${i + 1}`)}</option>`
         )
         .join('');
   } catch (err) {
@@ -94,7 +95,7 @@ function followImport(sessionId, targetUrl) {
   const timer = setInterval(async () => {
     try {
       const job = await api(`/api/sessions/${sessionId}/progress`);
-      progressMessage.textContent = job.message || job.state || '처리 중…';
+      progressMessage.textContent = job.message || job.state || T.processing;
       if (job.total) {
         progressBar.style.width = `${Math.round((job.done / job.total) * 100)}%`;
       }
@@ -106,7 +107,7 @@ function followImport(sessionId, targetUrl) {
       if (job.state === 'error') {
         clearInterval(timer);
         progressPanel.style.display = 'none';
-        toast(job.message || '처리에 실패했습니다.', 'bad');
+        toast(job.message || T.processFailed, 'bad');
       }
     } catch (err) {
       clearInterval(timer);
@@ -119,12 +120,12 @@ function followImport(sessionId, targetUrl) {
 document.getElementById('import-link').addEventListener('click', async (event) => {
   const url = document.getElementById('link-url').value.trim();
   if (!url) {
-    toast('링크를 붙여넣어 주세요.', 'bad');
+    toast(T.pasteLink, 'bad');
     return;
   }
   const btn = event.currentTarget;
   btn.disabled = true;
-  showProgress('링크를 확인하는 중…');
+  showProgress(T.checkingLink);
   try {
     const data = await api('/api/import', {
       method: 'POST',
@@ -167,7 +168,7 @@ dropzone.addEventListener('drop', (e) => {
 });
 
 async function uploadFile(file) {
-  showProgress(`${file.name} 올리는 중…`);
+  showProgress(`${file.name} ${T.uploading}`);
   const form = new FormData();
   form.append('file', file);
   form.append('kind', kind);

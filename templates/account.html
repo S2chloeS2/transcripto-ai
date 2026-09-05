@@ -1,113 +1,86 @@
 {% extends "base.html" %}
 {% set active = 'account' %}
-{% block title %}계정 — TranscriptoAI{% endblock %}
+{% block title %}{{ _('계정') }} — TranscriptoAI{% endblock %}
 
 {% block body %}
 <div class="page page-narrow">
   <div class="page-head" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
-      <h1>계정</h1>
+      <h1>{{ _('계정') }}</h1>
       <p>{{ current_user.name or current_user.email }} · {{ current_user.email }}</p>
     </div>
-    <a class="btn btn-ghost btn-sm" href="{{ url_for('auth.logout') }}">로그아웃</a>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('auth.logout') }}">{{ _('로그아웃') }}</a>
   </div>
 
   <div class="stack">
-
     <section class="card card-pad">
-      <p class="section-label">이번 달 사용량</p>
+      <p class="section-label">{{ _('이번 달 사용량') }}</p>
       <div class="usage-big">
         <div>
-          <div class="usage-big-num">{{ allowance.remaining_label }} <small>남음</small></div>
-          <p class="hint">{{ allowance.plan.name }} 플랜 · 월 {{ allowance.limit_label }} 중 {{ allowance.used_label }} 사용</p>
+          <div class="usage-big-num">{{ allowance.remaining_label }} <small>{{ _('남음') }}</small></div>
+          <p class="hint">{{ _('{plan} 플랜 · 월 {limit} 중 {used} 사용').format(plan=_(allowance.plan.name), limit=allowance.limit_label, used=allowance.used_label) }}</p>
         </div>
-        <span class="tag tag-accent">{{ allowance.plan.name }}</span>
+        <span class="tag tag-accent">{{ _(allowance.plan.name) }}</span>
       </div>
-      <div class="progress-shell" style="height:8px; margin-top:16px;">
-        <div class="progress-bar {{ 'is-low' if allowance.used_pct >= 85 }}" style="width:{{ allowance.used_pct }}%"></div>
-      </div>
-      <p class="hint" style="margin-top:12px;">
-        사용량은 받아적은 오디오 길이로 계산합니다. 요약·키워드·챗은 따로 세지 않습니다.
-        매달 1일에 초기화됩니다.
-      </p>
+      <div class="progress-shell" style="height:8px; margin-top:16px;"><div class="progress-bar {{ 'is-low' if allowance.used_pct >= 85 }}" style="width:{{ allowance.used_pct }}%"></div></div>
+      <p class="hint" style="margin-top:12px;">{{ _('사용량은 받아적은 오디오 길이로 계산합니다. 요약·키워드·챗은 따로 세지 않습니다.') }} {{ _('매달 1일에 초기화됩니다.') }}</p>
     </section>
 
     <section>
-      <p class="section-label">플랜</p>
+      <p class="section-label">{{ _('플랜') }}</p>
       <div class="lp-prices" style="margin-top:0;">
-        {% for key in order %}
-        {% set p = plans[key] %}
-        <div class="lp-price {{ 'is-featured' if key == 'standard' }}"
-             data-plan="{{ key }}">
-          {% if key == allowance.plan.key %}<span class="lp-price-flag">현재 플랜</span>
-          {% elif key == 'standard' %}<span class="lp-price-flag" style="background:var(--sunk); color:var(--ink-mute);">가장 많이 씁니다</span>{% endif %}
-          <h3>{{ p.name }}</h3>
-          <div class="lp-price-amount">{{ '{:,}'.format(p.price) }}<small>원{% if p.price %} / 월{% endif %}</small></div>
-          <p class="lp-price-hours">월 {{ p.minutes // 60 }}시간 · {{ p.blurb }}</p>
-          <ul>{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>
-          {% if key == allowance.plan.key %}
-            <button class="btn btn-ghost" disabled>사용 중</button>
-          {% elif can_switch %}
-            <button class="btn {{ 'btn-primary' if key == 'standard' else 'btn-ghost' }} plan-switch" data-plan="{{ key }}">
-              {{ '이 플랜으로' if p.price else '무료로 내리기' }}
-            </button>
-          {% else %}
-            <button class="btn btn-ghost" disabled title="결제 연동 준비 중">준비 중</button>
-          {% endif %}
+        {% for key in order %}{% set p = plans[key] %}
+        <div class="lp-price {{ 'is-featured' if key == 'standard' }}" data-plan="{{ key }}">
+          {% if key == allowance.plan.key %}<span class="lp-price-flag">{{ _('현재 플랜') }}</span>
+          {% elif key == 'standard' %}<span class="lp-price-flag" style="background:var(--sunk); color:var(--ink-mute);">{{ _('가장 많이 씁니다') }}</span>{% endif %}
+          <h3>{{ _(p.name) }}</h3>
+          <div class="lp-price-amount">{% if lang == 'ko' %}{{ '{:,}'.format(p.price) }}<small>원{% if p.price %} / 월{% endif %}</small>{% else %}<small>₩</small>{{ '{:,}'.format(p.price) }}{% if p.price %}<small> / mo</small>{% endif %}{% endif %}</div>
+          <p class="lp-price-hours">{% if lang == 'ko' %}월 {{ p.minutes // 60 }}시간 · {{ p.blurb }}{% else %}{{ p.minutes // 60 }} hours / month · {{ _(p.blurb) }}{% endif %}</p>
+          <ul>{% for f in p.features %}<li>{{ _(f) }}</li>{% endfor %}</ul>
+          {% if key == allowance.plan.key %}<button class="btn btn-ghost" disabled>{{ _('사용 중') }}</button>
+          {% elif can_switch %}<button class="btn {{ 'btn-primary' if key == 'standard' else 'btn-ghost' }} plan-switch" data-plan="{{ key }}">{{ _('이 플랜으로') if p.price else _('무료로 내리기') }}</button>
+          {% else %}<button class="btn btn-ghost" disabled>{{ _('준비 중') }}</button>{% endif %}
         </div>
         {% endfor %}
       </div>
-      {% if can_switch %}
-      <p class="hint" style="margin-top:14px;">
-        지금은 결제 연동 전이라 로컬 테스트용으로 플랜을 바로 바꿀 수 있습니다. 배포 환경에서는 이 버튼이 나타나지 않습니다.
-      </p>
-      {% else %}
-      <p class="hint" style="margin-top:14px;">결제 연동을 준비하고 있습니다. 준비되면 여기서 바로 바꿀 수 있습니다.</p>
-      {% endif %}
+      <p class="hint" style="margin-top:14px;">{% if can_switch %}{{ _('지금은 결제 연동 전이라 로컬 테스트용으로 플랜을 바로 바꿀 수 있습니다. 배포 환경에서는 이 버튼이 나타나지 않습니다.') }}{% else %}{{ _('결제 연동을 준비하고 있습니다. 준비되면 여기서 바로 바꿀 수 있습니다.') }}{% endif %}</p>
     </section>
 
     <section class="card card-pad" style="border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));">
-      <p class="section-label" style="color:var(--bad);">계정 삭제</p>
+      <p class="section-label" style="color:var(--bad);">{{ _('계정 삭제') }}</p>
       <p class="hint" style="margin-bottom:14px;">
-        계정과 함께 모든 기록·요약·폴더·대화·사용량이 <strong>즉시, 되돌릴 수 없게</strong> 삭제됩니다.
-        남겨둘 기록이 있다면 먼저 각 기록에서 내보내기를 해주세요.
+        {{ _('계정과 함께 모든 기록·요약·폴더·대화·사용량이 <strong>즉시, 되돌릴 수 없게</strong> 삭제됩니다.') | safe }}
+        {{ _('남겨둘 기록이 있다면 먼저 각 기록에서 내보내기를 해주세요.') }}
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <input class="input" id="delete-confirm" placeholder="확인을 위해 ‘삭제’ 라고 입력" style="max-width:260px;">
-        <button type="button" class="btn btn-ghost" id="delete-account" style="color:var(--bad); border-color:var(--bad);">계정 삭제</button>
+        <input class="input" id="delete-confirm" placeholder="{{ _('확인을 위해 ‘삭제’ 라고 입력') }}" style="max-width:260px;">
+        <button type="button" class="btn btn-ghost" id="delete-account" style="color:var(--bad); border-color:var(--bad);">{{ _('계정 삭제') }}</button>
       </div>
-      <p class="hint" style="margin-top:10px;">
-        <a href="{{ url_for('privacy') }}">개인정보처리방침</a> &middot; <a href="{{ url_for('terms') }}">이용약관</a>
-      </p>
+      <p class="hint" style="margin-top:10px;"><a href="{{ url_for('privacy') }}">{{ _('개인정보처리방침') }}</a> &middot; <a href="{{ url_for('terms') }}">{{ _('이용약관') }}</a></p>
     </section>
-
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const T = window.I18N;
 document.getElementById('delete-account').addEventListener('click', async () => {
   const confirmText = document.getElementById('delete-confirm').value.trim();
-  if (confirmText !== '삭제') { toast('확인 칸에 “삭제” 라고 입력해주세요.', 'bad'); return; }
-  if (!confirm('정말 계정과 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.')) return;
+  // The server accepts the Korean word; the English UI asks for DELETE.
+  const ok = confirmText === '삭제' || confirmText.toUpperCase() === 'DELETE';
+  if (!ok) { toast(T.typeDelete, 'bad'); return; }
+  if (!confirm(T.accountDeleteConfirm)) return;
   try {
-    await api('/api/account/delete', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ confirm: confirmText }),
-    });
+    await api('/api/account/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ confirm: '삭제' }) });
     window.location.href = '/';
   } catch (err) { toast(err.message, 'bad'); }
 });
-
 document.querySelectorAll('.plan-switch').forEach(btn => {
   btn.addEventListener('click', async () => {
     btn.disabled = true;
     try {
-      await api('/api/account/plan', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ plan: btn.dataset.plan }),
-      });
+      await api('/api/account/plan', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ plan: btn.dataset.plan }) });
       location.reload();
     } catch (err) { toast(err.message, 'bad'); btn.disabled = false; }
   });

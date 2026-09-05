@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}로그인 — TranscriptoAI{% endblock %}
+{% block title %}{{ _('로그인') }} — TranscriptoAI{% endblock %}
 
 {% block body %}
 <div class="auth-wrap">
   <div class="auth-card">
 
-    <img class="auth-art" src="{{ url_for('static', filename='images/story/owl-reading.jpg') }}"
+    <img class="auth-art" src="{{ url_for('static', filename='images/story/owl-reading.png') }}"
          alt="" width="480" height="480">
     <div class="auth-mark" style="justify-content:center;">
       <span class="brand-dot"></span>
@@ -17,8 +17,8 @@
     {% endif %}
 
     {% if configured %}
-      <h1>다시 오셨네요</h1>
-      <p>기록은 계정에 저장되어, 다른 기기에서도 이어서 볼 수 있습니다.</p>
+      <h1>{{ _('다시 오셨네요') }}</h1>
+      <p>{{ _('기록은 계정에 저장되어, 다른 기기에서도 이어서 볼 수 있습니다.') }}</p>
 
       <a class="btn btn-google" href="{{ url_for('auth.google_start', next=next_url) }}">
         <svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true">
@@ -27,47 +27,48 @@
           <path fill="#FBBC05" d="M10.4 28.7c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.8-4.5l-7.8-6.1C1 16.8 0 20.3 0 24s1 7.2 2.6 10.3l7.8-5.6z"/>
           <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.1-5.5c-2 1.3-4.6 2.1-8.8 2.1-6.3 0-11.7-3.7-13.6-9.1l-7.8 5.6C6.5 42.6 14.6 48 24 48z"/>
         </svg>
-        구글 계정으로 계속하기
+        {{ _('구글 계정으로 계속하기') }}
       </a>
 
       <p class="auth-note">
-        계속하면 이름과 이메일만 받아옵니다. 구글 비밀번호는 저희에게 전달되지 않습니다.<br>
-        계속하면 <a href="{{ url_for('terms') }}">이용약관</a>과 <a href="{{ url_for('privacy') }}">개인정보처리방침</a>에 동의하는 것입니다.
+        {{ _('계속하면 이름과 이메일만 받아옵니다. 구글 비밀번호는 저희에게 전달되지 않습니다.') }}<br>
+        {{ _('계속하면 <a href="{terms}">이용약관</a>과 <a href="{privacy}">개인정보처리방침</a>에 동의하는 것입니다.').format(terms=url_for('terms'), privacy=url_for('privacy')) | safe }}
       </p>
 
     {% else %}
-      <h1>구글 로그인 설정이 필요합니다</h1>
-      <p>한 번만 등록하면 됩니다. 5분이면 끝납니다.</p>
+      <h1>{{ _('구글 로그인 설정이 필요합니다') }}</h1>
+      <p>{{ _('한 번만 등록하면 됩니다. 5분이면 끝납니다.') }}</p>
 
       <div class="setup">
+        {% if lang == 'ko' %}
         <ol>
-          <li>
-            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">
-              Google Cloud Console → 사용자 인증 정보</a>로 이동
-          </li>
+          <li><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → 사용자 인증 정보</a>로 이동</li>
           <li><strong>사용자 인증 정보 만들기 → OAuth 클라이언트 ID → 웹 애플리케이션</strong></li>
-          <li>
-            승인된 리디렉션 URI에 이 주소를 그대로 추가:<br>
-            <code>{{ url_for('auth.callback', _external=True) }}</code>
-          </li>
-          <li>
-            발급된 두 값을 <code>.env</code>에 넣기:<br>
-            <code>GOOGLE_CLIENT_ID=…</code><br>
-            <code>GOOGLE_CLIENT_SECRET=…</code>
-          </li>
+          <li>승인된 리디렉션 URI에 이 주소를 그대로 추가:<br><code>{{ url_for('auth.callback', _external=True) }}</code></li>
+          <li>발급된 두 값을 <code>.env</code>에 넣기:<br><code>GOOGLE_CLIENT_ID=…</code><br><code>GOOGLE_CLIENT_SECRET=…</code></li>
           <li>서버를 껐다 켜면 이 화면에 로그인 버튼이 나타납니다.</li>
         </ol>
+        {% else %}
+        <ol>
+          <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → Credentials</a></li>
+          <li><strong>Create credentials → OAuth client ID → Web application</strong></li>
+          <li>Add this exact address under Authorized redirect URIs:<br><code>{{ url_for('auth.callback', _external=True) }}</code></li>
+          <li>Put the two values in <code>.env</code>:<br><code>GOOGLE_CLIENT_ID=…</code><br><code>GOOGLE_CLIENT_SECRET=…</code></li>
+          <li>Restart the server and the sign-in button appears here.</li>
+        </ol>
+        {% endif %}
       </div>
 
       {% if dev_login %}
-      <div class="setup-divider">또는</div>
+      <div class="setup-divider">{{ _('또는') }}</div>
       <form method="post" action="{{ url_for('auth.dev_login') }}">
         <button type="submit" class="btn btn-ghost" style="width:100%;">
-          로컬 테스트 계정으로 들어가기
+          {{ _('로컬 테스트 계정으로 들어가기') }}
         </button>
       </form>
       <p class="auth-note">
-        <code>ALLOW_DEV_LOGIN=1</code>일 때만 보이며, 배포 환경에서는 동작하지 않습니다.
+        {% if lang == 'ko' %}<code>ALLOW_DEV_LOGIN=1</code>일 때만 보이며, 배포 환경에서는 동작하지 않습니다.
+        {% else %}Only shown when <code>ALLOW_DEV_LOGIN=1</code>; it does nothing in production.{% endif %}
       </p>
       {% endif %}
     {% endif %}

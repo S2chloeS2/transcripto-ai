@@ -1,97 +1,83 @@
 {% extends "base.html" %}
 {% set active = 'review' %}
-{% block title %}지난 기록 — TranscriptoAI{% endblock %}
+{% block title %}{{ _('지난 기록') }} — TranscriptoAI{% endblock %}
 
 {% block body %}
 <div class="page page-narrow">
   <div class="page-head">
-    <h1>지난 기록</h1>
-    <p>기록은 저장되므로 나중에 다시 열어 요약과 챗을 이어갈 수 있습니다.
-       과목이나 프로젝트별로 폴더에 모으면 <strong>폴더 전체에 한꺼번에 질문</strong>할 수 있습니다.</p>
+    <h1>{{ _('지난 기록') }}</h1>
+    <p>{{ _('기록은 저장되므로 나중에 다시 열어 요약과 챗을 이어갈 수 있습니다.') }}
+       {{ _('과목이나 프로젝트별로 폴더에 모으면 <strong>폴더 전체에 한꺼번에 질문</strong>할 수 있습니다.') | safe }}</p>
   </div>
 
   <div class="folder-bar" id="folder-bar">
-    <a class="folder-chip {{ 'is-active' if folder_filter is none }}" href="{{ url_for('review') }}">전체</a>
+    <a class="folder-chip {{ 'is-active' if folder_filter is none }}" href="{{ url_for('review') }}">{{ _('전체') }}</a>
     {% for f in folders %}
     <a class="folder-chip {{ 'is-active' if folder_filter == f.id }}" href="{{ url_for('review', folder=f.id) }}">
       {{ f.name }} <span class="count">{{ f.session_count }}</span>
     </a>
     {% endfor %}
-    <a class="folder-chip {{ 'is-active' if folder_filter == 'none' }}" href="{{ url_for('review', folder='none') }}">폴더 없음</a>
-    <button type="button" class="folder-chip folder-chip-new" id="folder-new">+ 새 폴더</button>
+    <a class="folder-chip {{ 'is-active' if folder_filter == 'none' }}" href="{{ url_for('review', folder='none') }}">{{ _('폴더 없음') }}</a>
+    <button type="button" class="folder-chip folder-chip-new" id="folder-new">{{ _('+ 새 폴더') }}</button>
   </div>
 
   {% if folder_filter is not none and folder_filter != 'none' %}
   <div class="notice" style="margin-bottom:18px;">
-    <div>
-      이 폴더의 기록 전체를 대상으로 질문하려면
-      <a href="{{ url_for('folder_view', folder_id=folder_filter) }}"><strong>폴더 열기 →</strong></a>
-    </div>
+    <div>{{ _('이 폴더의 기록 전체를 대상으로 질문하려면 <a href="{url}"><strong>폴더 열기 →</strong></a>').format(url=url_for('folder_view', folder_id=folder_filter)) | safe }}</div>
   </div>
   {% endif %}
 
   {% if sessions %}
   <div class="field" style="margin-bottom:18px;">
-    <input class="input" id="review-search" type="search"
-           placeholder="제목·키워드·요약에서 찾기" autocomplete="off" aria-label="기록 검색">
+    <input class="input" id="review-search" type="search" placeholder="{{ _('제목·키워드·요약에서 찾기') }}" autocomplete="off" aria-label="{{ _('기록 검색') }}">
   </div>
 
   <div class="session-list" id="session-list">
     {% for s in sessions %}
-    <article class="session-card"
-             data-haystack="{{ (s.title ~ ' ' ~ (s.keyword_list | join(' ')) ~ ' ' ~ s.excerpt) | lower }}">
+    <article class="session-card" data-haystack="{{ (s.title ~ ' ' ~ (s.keyword_list | join(' ')) ~ ' ' ~ s.excerpt) | lower }}">
       <div style="min-width:0;">
         <h3><a href="{{ url_for('session_view', session_id=s.id) }}">{{ s.title }}</a></h3>
         <div class="session-card-meta">
-          <span class="tag">{{ '미팅' if s.kind == 'meeting' else '강의' }}</span>
+          <span class="tag">{{ _('미팅') if s.kind == 'meeting' else _('강의') }}</span>
           <span>{{ s.created_at[:10] }}</span>
           <span>&middot;</span>
-          <span>{{ s.segment_count }}개 구간</span>
-          {% if s.summary %}<span class="tag tag-ok">요약 있음</span>{% endif %}
+          <span>{{ _('{n}개 구간').format(n=s.segment_count) }}</span>
+          {% if s.summary %}<span class="tag tag-ok">{{ _('요약 있음') }}</span>{% endif %}
         </div>
-
-        {% if s.excerpt %}
-        <p class="session-card-excerpt">{{ s.excerpt }}</p>
-        {% endif %}
-
+        {% if s.excerpt %}<p class="session-card-excerpt">{{ s.excerpt }}</p>{% endif %}
         {% if s.keyword_list %}
         <div class="keywords" style="margin-top:10px;">
           {% for kw in s.keyword_list[:8] %}
           <a class="kw kw-mini" href="{{ url_for('session_view', session_id=s.id) }}#keywords">{{ kw }}</a>
           {% endfor %}
-          {% if s.keyword_list | length > 8 %}
-          <span class="hint" style="align-self:center;">+{{ s.keyword_list | length - 8 }}</span>
-          {% endif %}
+          {% if s.keyword_list | length > 8 %}<span class="hint" style="align-self:center;">+{{ s.keyword_list | length - 8 }}</span>{% endif %}
         </div>
         {% endif %}
       </div>
-
       <div style="display:grid; gap:8px; justify-items:end;">
         <label class="folder-pick">
-          <select class="folder-assign" data-session="{{ s.id }}" aria-label="폴더">
-            <option value="">폴더 없음</option>
-            {% for f in folders %}
-            <option value="{{ f.id }}" {{ 'selected' if s.folder_id == f.id }}>{{ f.name }}</option>
-            {% endfor %}
+          <select class="folder-assign" data-session="{{ s.id }}" aria-label="{{ _('폴더') }}">
+            <option value="">{{ _('폴더 없음') }}</option>
+            {% for f in folders %}<option value="{{ f.id }}" {{ 'selected' if s.folder_id == f.id }}>{{ f.name }}</option>{% endfor %}
           </select>
         </label>
-        <button type="button" class="btn btn-quiet btn-sm" data-delete="{{ s.id }}">삭제</button>
+        <button type="button" class="btn btn-quiet btn-sm" data-delete="{{ s.id }}">{{ _('삭제') }}</button>
       </div>
     </article>
     {% endfor %}
   </div>
-  <p class="empty" id="review-none" style="display:none;">검색 결과가 없습니다.</p>
+  <p class="empty" id="review-none" style="display:none;">{{ _('검색 결과가 없습니다.') }}</p>
 
   {% else %}
   <div class="card card-pad">
     <div class="empty">
-      <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.jpg') }}" alt="" width="900" height="672">
+      <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.png') }}" alt="" width="900" height="672">
       {% if folder_filter is not none %}
-        이 조건에 맞는 기록이 없습니다.<br>
-        <a href="{{ url_for('review') }}" style="display:inline-block; margin-top:12px;">전체 보기</a>
+        {{ _('이 조건에 맞는 기록이 없습니다.') }}<br>
+        <a href="{{ url_for('review') }}" style="display:inline-block; margin-top:12px;">{{ _('전체 보기') }}</a>
       {% else %}
-        아직 기록이 없습니다.<br>
-        <a href="{{ url_for('new_session') }}" style="display:inline-block; margin-top:12px;">첫 기록 시작하기</a>
+        {{ _('아직 기록이 없습니다.') }}<br>
+        <a href="{{ url_for('new_session') }}" style="display:inline-block; margin-top:12px;">{{ _('첫 기록 시작하기') }}</a>
       {% endif %}
     </div>
   </div>
@@ -101,56 +87,37 @@
 
 {% block scripts %}
 <script>
-// ---- delete
+const T = window.I18N;
 document.querySelectorAll('[data-delete]').forEach(btn => {
   btn.addEventListener('click', async () => {
-    const id = btn.dataset.delete;
-    if (!confirm('이 기록을 삭제할까요? 되돌릴 수 없습니다.')) return;
-    const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-    if (res.ok) btn.closest('.session-card').remove();
-    else toast('삭제하지 못했습니다.', 'bad');
+    if (!confirm(T.deleteConfirm)) return;
+    const res = await fetch(`/api/sessions/${btn.dataset.delete}`, { method: 'DELETE' });
+    if (res.ok) btn.closest('.session-card').remove(); else toast(T.deleteFailed, 'bad');
   });
 });
-
-// ---- new folder
 document.getElementById('folder-new').addEventListener('click', async () => {
-  const name = prompt('폴더 이름 (예: 운영체제, 팀 회의)');
+  const name = prompt(T.folderPrompt);
   if (!name || !name.trim()) return;
   try {
-    const data = await api('/api/folders', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    });
+    const data = await api('/api/folders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name: name.trim() }) });
     window.location.href = `/review?folder=${data.id}`;
   } catch (err) { toast(err.message, 'bad'); }
 });
-
-// ---- file a session into a folder, right from the list
 document.querySelectorAll('.folder-assign').forEach(sel => {
   sel.addEventListener('change', async () => {
     try {
-      await api(`/api/sessions/${sel.dataset.session}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder_id: sel.value || null }),
-      });
-      toast(sel.value ? '폴더에 넣었습니다.' : '폴더에서 뺐습니다.', 'ok');
+      await api(`/api/sessions/${sel.dataset.session}`, { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ folder_id: sel.value || null }) });
+      toast(sel.value ? T.filed : T.unfiled, 'ok');
     } catch (err) { toast(err.message, 'bad'); }
   });
 });
-
-// ---- search: everything needed is already on the page
 const search = document.getElementById('review-search');
 if (search) {
   const cards = [...document.querySelectorAll('.session-card')];
   const none = document.getElementById('review-none');
   search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    let shown = 0;
-    cards.forEach(card => {
-      const hit = !q || card.dataset.haystack.includes(q);
-      card.style.display = hit ? '' : 'none';
-      if (hit) shown += 1;
-    });
+    const q = search.value.trim().toLowerCase(); let shown = 0;
+    cards.forEach(card => { const hit = !q || card.dataset.haystack.includes(q); card.style.display = hit ? '' : 'none'; if (hit) shown++; });
     none.style.display = shown ? 'none' : '';
   });
 }

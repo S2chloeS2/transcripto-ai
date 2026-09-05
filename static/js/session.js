@@ -1,4 +1,5 @@
 /* The session screen: record, transcribe, summarise, explain, chat. */
+const T = window.I18N;
 
 const root = document.getElementById('session-root');
 const sessionId = root.dataset.sessionId;
@@ -28,11 +29,11 @@ if (startBtn) {
       startBtn.disabled = recording;
       stopBtn.disabled = !recording;
       liveTag.style.display = recording ? '' : 'none';
-      statusEl.textContent = recording ? '듣는 중' : '정지됨';
+      statusEl.textContent = recording ? T.listening : T.stopped;
     },
     onClip: async (blob) => {
       pending += 1;
-      statusEl.textContent = `받아적는 중… (${pending})`;
+      statusEl.textContent = `${T.transcribing} (${pending})`;
       const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
       const form = new FormData();
       form.append('file', blob, `clip.${ext}`);
@@ -46,7 +47,7 @@ if (startBtn) {
         toast(err.message, 'bad');
       } finally {
         pending -= 1;
-        if (pending === 0) statusEl.textContent = capture.isRecording ? '듣는 중' : '정지됨';
+        if (pending === 0) statusEl.textContent = capture.isRecording ? T.listening : T.stopped;
       }
     },
   });
@@ -57,7 +58,7 @@ if (startBtn) {
       await capture.start(source, deviceId);
     } catch (err) {
       startBtn.disabled = false;
-      toast(err.message || '소리를 받지 못했습니다.', 'bad');
+      toast(err.message || T.micFailed, 'bad');
     }
   });
 
@@ -75,7 +76,7 @@ if (startBtn) {
         b.setAttribute('aria-pressed', String(b.dataset.source === source));
       });
       document.getElementById('source-tag').textContent =
-        { system: '컴퓨터 소리', mic: '마이크', both: '컴퓨터 + 마이크' }[source];
+        T.sourceNames[source];
       if (wasRecording) {
         try {
           await capture.start(source, deviceId);
@@ -117,7 +118,7 @@ if (importPanel) {
         return;
       }
       importPanel.style.display = '';
-      message.textContent = job.message || '처리 중…';
+      message.textContent = job.message || T.processing;
       if (job.total) bar.style.width = `${Math.round((job.done / job.total) * 100)}%`;
       if (job.state === 'error') {
         clearInterval(timer);
@@ -140,7 +141,7 @@ titleInput.addEventListener('input', () => {
     api(`/api/sessions/${sessionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: titleInput.value.trim() || '제목 없음' }),
+      body: JSON.stringify({ title: titleInput.value.trim() || T.untitled }),
     }).catch(() => {});
   }, 700);
 });
@@ -160,7 +161,7 @@ if (summaryBody.textContent.trim()) {
 summaryBtn.addEventListener('click', async () => {
   summaryBtn.disabled = true;
   const original = summaryBtn.textContent;
-  summaryBtn.textContent = '요약하는 중…';
+  summaryBtn.textContent = T.summarizing;
   try {
     const data = await api(`/api/sessions/${sessionId}/summary`, { method: 'POST' });
     summaryBody.innerHTML = renderMarkdown(data.summary);
@@ -168,7 +169,7 @@ summaryBtn.addEventListener('click', async () => {
     renderKeywords(data.keywords);
     if (data.title) titleInput.value = data.title;
     summaryCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    toast('요약이 만들어졌습니다.', 'ok');
+    toast(T.summarized, 'ok');
   } catch (err) {
     toast(err.message, 'bad');
   } finally {
@@ -213,7 +214,7 @@ keywordsEl.addEventListener('click', async (event) => {
     return;
   }
 
-  kwPanel.textContent = '설명을 불러오는 중…';
+  kwPanel.textContent = T.loadingExplanation;
   try {
     const data = await api(`/api/sessions/${sessionId}/keyword?q=${encodeURIComponent(kw)}`);
     notes[kw] = data.explanation;
@@ -261,7 +262,7 @@ chatForm.addEventListener('submit', async (event) => {
 function addMessage(role, text) {
   const el = document.createElement('div');
   el.className = 'msg' + (role === 'user' ? ' msg-user' : '');
-  el.innerHTML = `<span class="msg-role">${role === 'user' ? '나' : 'AI'}</span><div class="msg-body"></div>`;
+  el.innerHTML = `<span class="msg-role">${role === 'user' ? T.me : T.ai}</span><div class="msg-body"></div>`;
   el.querySelector('.msg-body').textContent = text;
   chatLog.appendChild(el);
   chatLog.scrollTop = chatLog.scrollHeight;
@@ -274,12 +275,12 @@ document.getElementById('export').addEventListener('click', () => {
   const lines = [`# ${titleInput.value}`, ''];
 
   const summary = summaryBody.textContent.trim();
-  if (summary) lines.push('## 요약', '', summary, '');
+  if (summary) lines.push(`## ${T.exportSummary}`, '', summary, '');
 
   const keywords = [...keywordsEl.querySelectorAll('.kw')].map((b) => b.textContent);
-  if (keywords.length) lines.push('## 핵심 용어', '', keywords.join(', '), '');
+  if (keywords.length) lines.push(`## ${T.exportKeywords}`, '', keywords.join(', '), '');
 
-  lines.push('## 스크립트', '');
+  lines.push(`## ${T.exportTranscript}`, '');
   transcriptEl.querySelectorAll('.seg-line').forEach((line) => {
     lines.push(`[${line.querySelector('.seg-time').textContent}] ${line.querySelector('.seg-text').textContent}`);
   });
@@ -323,7 +324,7 @@ if (folderSelect) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder_id: folderSelect.value || null }),
       });
-      toast(folderSelect.value ? '폴더에 넣었습니다.' : '폴더에서 뺐습니다.', 'ok');
+      toast(folderSelect.value ? T.filed : T.unfiled, 'ok');
     } catch (err) {
       toast(err.message, 'bad');
     }

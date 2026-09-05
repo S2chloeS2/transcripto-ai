@@ -20,7 +20,7 @@ async function api(url, options = {}) {
     /* empty or non-JSON body */
   }
   if (!res.ok) {
-    throw new Error((data && data.error) || `요청이 실패했습니다 (${res.status})`);
+    throw new Error((data && data.error) || `${(window.I18N||{}).requestFailed || '요청이 실패했습니다'} (${res.status})`);
   }
   return data;
 }

@@ -1,4 +1,5 @@
 /* Folder page: rename, delete, and chat across every recording in it. */
+const T = window.I18N;
 
 const folderRoot = document.getElementById('folder-root');
 const folderId = folderRoot.dataset.folderId;
@@ -23,7 +24,7 @@ nameInput.addEventListener('input', () => {
 // ------------------------------------------------------------------ delete
 
 document.getElementById('folder-delete').addEventListener('click', async () => {
-  if (!confirm('이 폴더를 삭제할까요? 안의 기록은 지워지지 않고 폴더 밖으로 나옵니다.')) return;
+  if (!confirm(T.folderDeleteConfirm)) return;
   try {
     await api(`/api/folders/${folderId}`, { method: 'DELETE' });
     window.location.href = '/review';
@@ -70,7 +71,7 @@ chatForm.addEventListener('submit', async (event) => {
 function addMessage(role, text) {
   const el = document.createElement('div');
   el.className = 'msg' + (role === 'user' ? ' msg-user' : '');
-  el.innerHTML = `<span class="msg-role">${role === 'user' ? '나' : 'AI'}</span><div class="msg-body"></div>`;
+  el.innerHTML = `<span class="msg-role">${role === 'user' ? T.me : T.ai}</span><div class="msg-body"></div>`;
   el.querySelector('.msg-body').textContent = text;
   chatLog.appendChild(el);
   chatLog.scrollTop = chatLog.scrollHeight;

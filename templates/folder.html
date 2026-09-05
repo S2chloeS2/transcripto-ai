@@ -4,29 +4,25 @@
 
 {% block body %}
 <div class="page" id="folder-root" data-folder-id="{{ folder.id }}">
-
   <header class="session-head">
     <div style="flex:1; min-width:240px;">
-      <p class="section-label" style="margin-bottom:4px;">
-        <a href="{{ url_for('review') }}" style="color:inherit;">지난 기록</a> / 폴더
-      </p>
-      <input class="session-title" id="folder-name" value="{{ folder.name }}" aria-label="폴더 이름">
+      <p class="section-label" style="margin-bottom:4px;"><a href="{{ url_for('review') }}" style="color:inherit;">{{ _('지난 기록') }}</a> / {{ _('폴더') }}</p>
+      <input class="session-title" id="folder-name" value="{{ folder.name }}" aria-label="{{ _('폴더 이름') }}">
       <div class="session-meta">
-        <span class="tag">{{ sessions | length }}개 기록</span>
-        <span class="tag">{{ sessions | map(attribute='segment_count') | sum }}개 구간</span>
+        <span class="tag">{{ _('{n}개 기록').format(n=sessions | length) }}</span>
+        <span class="tag">{{ _('{n}개 구간').format(n=sessions | map(attribute='segment_count') | sum) }}</span>
       </div>
     </div>
     <div class="session-actions">
-      <a class="btn btn-ghost btn-sm" href="{{ url_for('review', folder=folder.id) }}">목록에서 보기</a>
-      <button type="button" class="btn btn-quiet btn-sm" id="folder-delete">폴더 삭제</button>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('review', folder=folder.id) }}">{{ _('목록에서 보기') }}</a>
+      <button type="button" class="btn btn-quiet btn-sm" id="folder-delete">{{ _('폴더 삭제') }}</button>
     </div>
   </header>
 
   <div class="grid-session">
-
     <div class="stack">
       <section class="card card-pad">
-        <p class="section-label">이 폴더의 기록</p>
+        <p class="section-label">{{ _('이 폴더의 기록') }}</p>
         {% if sessions %}
         <div class="session-list">
           {% for s in sessions %}
@@ -34,25 +30,21 @@
             <div style="min-width:0;">
               <h3><a href="{{ url_for('session_view', session_id=s.id) }}">{{ s.title }}</a></h3>
               <div class="session-card-meta">
-                <span class="tag">{{ '미팅' if s.kind == 'meeting' else '강의' }}</span>
+                <span class="tag">{{ _('미팅') if s.kind == 'meeting' else _('강의') }}</span>
                 <span>{{ s.created_at[:10] }}</span>
-                {% if s.summary %}<span class="tag tag-ok">요약 있음</span>{% endif %}
+                {% if s.summary %}<span class="tag tag-ok">{{ _('요약 있음') }}</span>{% endif %}
               </div>
               {% if s.excerpt %}<p class="session-card-excerpt">{{ s.excerpt }}</p>{% endif %}
-              {% if s.keyword_list %}
-              <div class="keywords" style="margin-top:9px;">
-                {% for kw in s.keyword_list[:6] %}<span class="kw kw-mini">{{ kw }}</span>{% endfor %}
-              </div>
-              {% endif %}
+              {% if s.keyword_list %}<div class="keywords" style="margin-top:9px;">{% for kw in s.keyword_list[:6] %}<span class="kw kw-mini">{{ kw }}</span>{% endfor %}</div>{% endif %}
             </div>
           </article>
           {% endfor %}
         </div>
         {% else %}
         <div class="empty">
-          <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.jpg') }}" alt="" width="900" height="672">
-          아직 이 폴더에 넣은 기록이 없습니다.<br>
-          <a href="{{ url_for('review') }}">지난 기록</a>에서 각 기록의 폴더를 고르면 여기에 모입니다.
+          <img class="empty-art" src="{{ url_for('static', filename='images/story/cat-empty.png') }}" alt="" width="900" height="672">
+          {{ _('아직 이 폴더에 넣은 기록이 없습니다.') }}<br>
+          {{ _('<a href="{url}">지난 기록</a>에서 각 기록의 폴더를 고르면 여기에 모입니다.').format(url=url_for('review')) | safe }}
         </div>
         {% endif %}
       </section>
@@ -60,34 +52,23 @@
 
     <aside class="card card-pad">
       <div class="chat-head">
-        <img class="spot-sm" src="{{ url_for('static', filename='images/story/owl-bubble.jpg') }}" alt="" width="480" height="480">
-        <p class="section-label" style="margin:0;">폴더 전체에 질문</p>
+        <img class="spot-sm" src="{{ url_for('static', filename='images/story/owl-bubble.png') }}" alt="" width="480" height="480">
+        <p class="section-label" style="margin:0;">{{ _('폴더 전체에 질문') }}</p>
       </div>
-      <p class="hint" style="margin-bottom:14px;">
-        이 폴더의 모든 기록을 한꺼번에 봅니다. 어느 기록에서 나온 말인지 함께 알려주고,
-        나오지 않은 내용은 모른다고 답합니다.
-      </p>
+      <p class="hint" style="margin-bottom:14px;">{{ _('이 폴더의 모든 기록을 한꺼번에 봅니다. 어느 기록에서 나온 말인지 함께 알려주고, 나오지 않은 내용은 모른다고 답합니다.') }}</p>
       <div class="chat">
         <div class="chat-log" id="chat-log">
           {% for m in messages %}
-          <div class="msg {{ 'msg-user' if m.role == 'user' else '' }}">
-            <span class="msg-role">{{ '나' if m.role == 'user' else 'AI' }}</span>
-            <div class="msg-body">{{ m.content }}</div>
-          </div>
+          <div class="msg {{ 'msg-user' if m.role == 'user' else '' }}"><span class="msg-role">{{ _('나') if m.role == 'user' else 'AI' }}</span><div class="msg-body">{{ m.content }}</div></div>
           {% endfor %}
-          {% if not messages %}
-          <div class="empty" id="chat-empty">
-            예: “3주차와 5주차에서 스케줄링을 어떻게 다르게 설명했어?”
-          </div>
-          {% endif %}
+          {% if not messages %}<div class="empty" id="chat-empty">{{ _('예: “3주차와 5주차에서 스케줄링을 어떻게 다르게 설명했어?”') }}</div>{% endif %}
         </div>
         <form class="chat-form" id="chat-form">
-          <input class="input" id="chat-input" placeholder="이 폴더의 내용에 대해 물어보세요" autocomplete="off">
-          <button type="submit" class="btn btn-primary" id="chat-send">보내기</button>
+          <input class="input" id="chat-input" placeholder="{{ _('이 폴더의 내용에 대해 물어보세요') }}" autocomplete="off">
+          <button type="submit" class="btn btn-primary" id="chat-send">{{ _('보내기') }}</button>
         </form>
       </div>
     </aside>
-
   </div>
 </div>
 {% endblock %}

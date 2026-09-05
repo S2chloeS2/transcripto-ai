@@ -1,125 +1,116 @@
 {% extends "base.html" %}
 {% set active = 'new' %}
-{% block title %}새 기록 시작 — TranscriptoAI{% endblock %}
+{% block title %}{{ _('새 기록') }} — TranscriptoAI{% endblock %}
+{% set art = 'images/story/' %}
 
 {% block body %}
 <div class="page page-narrow">
   <div class="page-head">
-    <h1>무엇을 기록할까요?</h1>
-    <p>소리가 어디서 나오는지 고르면 됩니다. 시작한 뒤에도 바꿀 수 있습니다.</p>
+    <h1>{{ _('무엇을 기록할까요?') }}</h1>
+    <p>{{ _('소리가 어디서 나오는지 고르면 됩니다. 시작한 뒤에도 바꿀 수 있습니다.') }}</p>
   </div>
 
   {% if allowance and allowance.remaining_s <= 0 %}
   <div class="notice notice-block" style="margin-bottom:20px;">
     <div>
-      <strong>이번 달 {{ allowance.plan.name }} 플랜의 {{ allowance.limit_label }}을 다 썼습니다.</strong>
-      다음 달 1일에 초기화되거나, <a href="{{ url_for('account') }}">플랜을 올리면</a> 바로 이어서 쓸 수 있습니다.
-      지난 기록은 계속 열어볼 수 있습니다.
+      <strong>{{ _('이번 달 {plan} 플랜의 {limit}을 다 썼습니다.').format(plan=allowance.plan.name, limit=allowance.limit_label) }}</strong>
+      {{ _('다음 달 1일에 초기화되거나, <a href="{url}">플랜을 올리면</a> 바로 이어서 쓸 수 있습니다. 지난 기록은 계속 열어볼 수 있습니다.').format(url=url_for('account')) | safe }}
     </div>
   </div>
   {% elif allowance and allowance.used_pct >= 85 %}
   <div class="notice" style="margin-bottom:20px;">
-    <div>이번 달 남은 시간이 <strong>{{ allowance.remaining_label }}</strong>입니다.
-      <a href="{{ url_for('account') }}">계정</a>에서 사용량을 확인하세요.</div>
+    <div>{{ _('이번 달 남은 시간이 <strong>{left}</strong>입니다. <a href="{url}">계정</a>에서 사용량을 확인하세요.').format(left=allowance.remaining_label, url=url_for('account')) | safe }}</div>
   </div>
   {% endif %}
 
   <div class="stack" {% if allowance and allowance.remaining_s <= 0 %}data-quota-exhausted="1"{% endif %}>
 
     <section class="card card-pad">
-      <p class="section-label">지금 바로 듣기</p>
-      <div class="modes" role="group" aria-label="소리를 받을 곳">
-
-        <button type="button" class="mode" data-source="system" aria-pressed="false">
-          <img class="mode-art" src="{{ url_for('static', filename='images/story/laptop.jpg') }}" alt="" width="480" height="480">
-          <div class="mode-name">컴퓨터 소리</div>
-          <p class="mode-desc">Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리만 담고 내 목소리는 담기지 않습니다.</p>
+      <p class="section-label">{{ _('지금 바로 듣기') }}</p>
+      <div class="modes" role="group" aria-label="{{ _('소리를 받을 곳') }}">
+        {% set modes = [
+          ('system','laptop','컴퓨터 소리','Zoom, 유튜브, 온라인 강의. 스피커로 나가는 소리만 담고 내 목소리는 담기지 않습니다.', 'false'),
+          ('mic','mic','방 안의 대화','강의실 수업, 대면 미팅, 인터뷰. 노트북 마이크로 주변 소리를 담습니다.', 'true'),
+          ('both','headphones','둘 다 섞기','화상 회의에 현장 사람들이 섞여 있을 때. 화면 속 목소리와 옆자리 발언을 함께 담습니다.', 'false'),
+        ] %}
+        {% for src, img, name, desc, pressed in modes %}
+        <button type="button" class="mode" data-source="{{ src }}" aria-pressed="{{ pressed }}">
+          <img class="mode-art" src="{{ url_for('static', filename=art ~ img ~ '.png') }}" alt="" width="480" height="480">
+          <div class="mode-name">{{ _(name) }}</div>
+          <p class="mode-desc">{{ _(desc) }}</p>
         </button>
-
-        <button type="button" class="mode" data-source="mic" aria-pressed="true">
-          <img class="mode-art" src="{{ url_for('static', filename='images/story/mic.jpg') }}" alt="" width="480" height="480">
-          <div class="mode-name">방 안의 대화</div>
-          <p class="mode-desc">강의실 수업, 대면 미팅, 인터뷰. 노트북 마이크로 주변 소리를 담습니다.</p>
-        </button>
-
-        <button type="button" class="mode" data-source="both" aria-pressed="false">
-          <img class="mode-art" src="{{ url_for('static', filename='images/story/headphones.jpg') }}" alt="" width="480" height="480">
-          <div class="mode-name">둘 다 섞기</div>
-          <p class="mode-desc">화상 회의에 현장 사람들이 섞여 있을 때. 화면 속 목소리와 옆자리 발언을 함께 담습니다.</p>
-        </button>
-
+        {% endfor %}
       </div>
 
       <div id="system-help" class="hint" style="margin-top:16px; display:none;">
-        <strong>공유 창이 뜨면 “Chrome 탭”을 고르고, 아래 “탭 오디오도 공유”를 꼭 켜주세요.</strong>
-        macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를 공유하면 소리가 빠집니다.
-        데스크톱 Zoom·Teams 앱을 쓴다면 회의를 녹음한 뒤 아래에서 파일로 올리는 쪽이 확실합니다.
+        <strong>{{ _('공유 창이 뜨면 “Chrome 탭”을 고르고, 아래 “탭 오디오도 공유”를 꼭 켜주세요.') }}</strong>
+        {{ _('macOS는 브라우저에 시스템 전체 소리를 주지 않아서, 화면 전체를 공유하면 소리가 빠집니다.') }}
+        {{ _('데스크톱 Zoom·Teams 앱을 쓴다면 회의를 녹음한 뒤 아래에서 파일로 올리는 쪽이 확실합니다.') }}
       </div>
 
       <div style="margin-top:22px; display:grid; gap:16px;">
         <div class="field">
-          <span class="field-label">어떤 자리인가요?</span>
-          <div class="seg" role="group" aria-label="기록 종류">
-            <button type="button" class="seg-btn" data-kind="lecture" aria-pressed="true">강의</button>
-            <button type="button" class="seg-btn" data-kind="meeting" aria-pressed="false">미팅</button>
+          <span class="field-label">{{ _('어떤 자리인가요?') }}</span>
+          <div class="seg" role="group" aria-label="{{ _('기록 종류') }}">
+            <button type="button" class="seg-btn" data-kind="lecture" aria-pressed="true">{{ _('강의') }}</button>
+            <button type="button" class="seg-btn" data-kind="meeting" aria-pressed="false">{{ _('미팅') }}</button>
           </div>
-          <p class="hint">강의는 주제별로, 미팅은 결정사항 중심으로 요약합니다.</p>
+          <p class="hint">{{ _('강의는 주제별로, 미팅은 결정사항 중심으로 요약합니다.') }}</p>
 
           <div id="meeting-diar-note" class="notice" style="margin-top:12px; display:none;">
-            <svg class="notice-icon" width="17" height="17" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <svg class="notice-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
               <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9 7a3 3 0 1 0 6 0 3 3 0 0 0-6 0M21 21v-2a4 4 0 0 0-3-3.9"/>
             </svg>
             <div>
-              <strong>화자 분리(누가 말했는지)는 아래 “녹음 파일 올리기”에서만 됩니다.</strong>
-              실시간 녹음은 소리를 짧게 잘라 처리해서, 조각 사이의 같은 사람을 이어 붙일 수 없습니다.
-              발언자를 나누고 싶다면 회의를 녹음한 뒤 파일로 올려주세요.
+              <strong>{{ _('화자 분리(누가 말했는지)는 아래 “녹음 파일 올리기”에서만 됩니다.') }}</strong>
+              {{ _('실시간 녹음은 소리를 짧게 잘라 처리해서, 조각 사이의 같은 사람을 이어 붙일 수 없습니다.') }}
+              {{ _('발언자를 나누고 싶다면 회의를 녹음한 뒤 파일로 올려주세요.') }}
             </div>
           </div>
         </div>
 
         <div class="field" id="device-field" style="display:none;">
-          <label class="field-label" for="device">입력 장치</label>
+          <label class="field-label" for="device">{{ _('입력 장치') }}</label>
           <select class="select" id="device"></select>
-          <p class="hint">BlackHole 같은 가상 오디오 장치를 설치했다면 여기서 고르세요. 데스크톱 Zoom·Teams 소리를 직접 받을 수 있습니다.</p>
+          <p class="hint">{{ _('BlackHole 같은 가상 오디오 장치를 설치했다면 여기서 고르세요. 데스크톱 Zoom·Teams 소리를 직접 받을 수 있습니다.') }}</p>
         </div>
 
         <div>
-          <button type="button" class="btn btn-primary btn-lg" id="start-session">기록 시작</button>
+          <button type="button" class="btn btn-primary btn-lg" id="start-session">{{ _('기록 시작') }}</button>
         </div>
       </div>
     </section>
 
     <section class="card card-pad">
-      <p class="section-label">이미 있는 것 불러오기</p>
+      <p class="section-label">{{ _('이미 있는 것 불러오기') }}</p>
 
       <div class="field" style="margin-bottom:20px;">
-        <label class="field-label" for="link-url">링크 붙여넣기</label>
+        <label class="field-label" for="link-url">{{ _('링크 붙여넣기') }}</label>
         <div style="display:flex; gap:9px; flex-wrap:wrap;">
           <input class="input" id="link-url" type="url" placeholder="https://www.youtube.com/watch?v=…" style="flex:1; min-width:240px;">
-          <button type="button" class="btn btn-ghost" id="import-link">가져오기</button>
+          <button type="button" class="btn btn-ghost" id="import-link">{{ _('가져오기') }}</button>
         </div>
-        <p class="hint">유튜브 등 공개 영상의 소리만 받아와 정리합니다. 긴 영상은 나눠서 처리하므로 시간이 걸립니다.</p>
+        <p class="hint">{{ _('유튜브 등 공개 영상의 소리만 받아와 정리합니다. 긴 영상은 나눠서 처리하므로 시간이 걸립니다.') }}</p>
       </div>
 
       <div class="field">
-        <span class="field-label">녹음 파일 올리기</span>
+        <span class="field-label">{{ _('녹음 파일 올리기') }}</span>
         <div class="dropzone" id="dropzone">
-          <p class="dropzone-title">여기로 파일을 끌어다 놓으세요</p>
-          <p class="dropzone-hint">m4a, mp3, wav, mp4 &middot; Zoom·Teams의 로컬 녹음 파일이 여기 해당합니다</p>
-          <button type="button" class="btn btn-ghost btn-sm" id="pick-file" style="margin-top:14px;">파일 고르기</button>
+          <p class="dropzone-title">{{ _('여기로 파일을 끌어다 놓으세요') }}</p>
+          <p class="dropzone-hint">{{ _('m4a, mp3, wav, mp4 · Zoom·Teams의 로컬 녹음 파일이 여기 해당합니다') }}</p>
+          <button type="button" class="btn btn-ghost btn-sm" id="pick-file" style="margin-top:14px;">{{ _('파일 고르기') }}</button>
           <input type="file" id="file-input" accept="audio/*,video/*" class="sr-only">
         </div>
         <p class="hint">
-          데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.
-          <br><strong>미팅으로 올리면 발언자를 자동으로 나눠줍니다.</strong>
+          {{ _('데스크톱 Zoom·Teams를 쓴다면 이 방법이 가장 확실합니다. 오디오 설정을 건드릴 필요가 없습니다.') }}
+          <br><strong>{{ _('미팅으로 올리면 발언자를 자동으로 나눠줍니다.') }}</strong>
         </p>
       </div>
 
       <div id="import-progress" style="display:none; margin-top:18px;">
         <div style="display:flex; align-items:center; gap:10px;">
           <span class="spinner"></span>
-          <span class="capture-status" id="import-message">준비 중…</span>
+          <span class="capture-status" id="import-message">{{ _('준비 중…') }}</span>
         </div>
         <div class="progress-shell"><div class="progress-bar" id="import-bar"></div></div>
       </div>

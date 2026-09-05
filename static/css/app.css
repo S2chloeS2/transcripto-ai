@@ -785,7 +785,7 @@ a:hover { text-decoration: underline; }
 .wash-img::before {
   content: ""; position: absolute; z-index: -1; pointer-events: none;
   right: -8%; top: -6%; width: 62%; height: 112%;
-  background: url("/static/images/story/wash.jpg") center / contain no-repeat;
+  background: url("/static/images/story/wash.png") center / contain no-repeat;
   opacity: .9; mix-blend-mode: multiply;
 }
 @media (max-width: 939px) {
@@ -866,3 +866,14 @@ html, body { overflow-x: clip; }
   .nav-user .nav-link { display: none; }
   .nav-user { margin-left: 2px; }
 }
+
+/* Language switch and transparent-illustration tweaks */
+.lang-switch {
+  margin-left: 6px; padding: 5px 10px; border-radius: 100px; font-size: 12.5px; font-weight: 600;
+  color: var(--ink-soft); border: 1px solid var(--rule-strong); background: var(--surface);
+}
+.lang-switch:hover { background: var(--sunk); color: var(--ink); text-decoration: none; }
+/* The wash is a real transparent PNG now — no blend trick needed. */
+.wash-img::before { background-image: url("/static/images/story/wash.png"); mix-blend-mode: normal; opacity: .9; }
+:root:not([data-theme="light"]) .wash-img::before { mix-blend-mode: normal; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wash-img::before { opacity: .35; } }

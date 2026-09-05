@@ -843,3 +843,18 @@ a:hover { text-decoration: underline; }
 .auth-art, .empty-art, .hero-art, .spot, .spot-sm, .mode-art, .story-img { height: auto; }
 .spot, .spot-sm, .mode-art { aspect-ratio: 1 / 1; }
 .auth-art { width: 132px; }
+
+/* Decorative watercolor pseudo-elements bleed past the viewport on purpose;
+   clip the horizontal overflow so they never create a sideways scrollbar. */
+html, body { overflow-x: clip; }
+
+/* Nav labels stay on one line; on narrow screens tighten instead of wrapping. */
+.nav-link { white-space: nowrap; }
+@media (max-width: 640px) {
+  .nav { padding: 0 14px; height: 58px; gap: 10px; }
+  .brand { font-size: 16px; }
+  .nav-links { gap: 0; }
+  .nav-link { padding: 6px 8px; font-size: 13.5px; }
+  .usage-pill { padding: 4px 8px; }
+  .usage-track { width: 36px; }
+}

@@ -58,6 +58,55 @@ def inject_user():
     }
 
 
+# ------------------------------------------------------- production guards
+
+IS_PRODUCTION = os.getenv("FLASK_ENV") == "production"
+
+if IS_PRODUCTION:
+    # A deployed server must never start in a state that hands out accounts
+    # for free or signs cookies with a throwaway key.
+    if os.getenv("ALLOW_DEV_LOGIN") == "1":
+        raise SystemExit("FLASK_ENV=production 에서는 ALLOW_DEV_LOGIN 을 켤 수 없습니다.")
+    if not os.getenv("SECRET_KEY"):
+        raise SystemExit("FLASK_ENV=production 에는 고정 SECRET_KEY 가 필요합니다.")
+    if not (os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET")):
+        raise SystemExit("FLASK_ENV=production 에는 구글 로그인 자격증명이 필요합니다.")
+
+
+# Per-user request throttle for the API. Plans cap *minutes transcribed*;
+# this caps *requests*, so a runaway script cannot hammer the model APIs or
+# the database even inside its allowance. In-memory: fine for one process,
+# and gunicorn workers each keep their own window (so the real cap is a bit
+# higher than the number below — acceptable for a first line of defence).
+import collections
+import time as _time
+
+RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_MIN", "90"))
+_hits = collections.defaultdict(collections.deque)
+_hits_lock = threading.Lock()
+
+
+@app.before_request
+def throttle_api():
+    if not request.path.startswith("/api/"):
+        return None
+    user = auth.current_user()
+    key = f"u{user['id']}" if user else f"ip{request.remote_addr}"
+    now = _time.monotonic()
+    with _hits_lock:
+        window = _hits[key]
+        while window and now - window[0] > 60:
+            window.popleft()
+        if len(window) >= RATE_LIMIT:
+            retry = int(60 - (now - window[0])) + 1
+            resp = jsonify({"error": f"요청이 너무 잦습니다. {retry}초 뒤 다시 시도해주세요."})
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(retry)
+            return resp
+        window.append(now)
+    return None
+
+
 def current_folders():
     user = auth.current_user()
     return db.list_folders(user["id"]) if user else []
@@ -642,6 +691,36 @@ def api_transcript(session_id):
     return jsonify({"segments": db.get_segments(session_id)})
 
 
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+
+@app.route("/robots.txt")
+def robots():
+    return ("User-agent: *\nDisallow: /api/\nDisallow: /session/\nDisallow: /folder/\n"
+            "Disallow: /review\nDisallow: /account\nAllow: /\n"), 200, {"Content-Type": "text/plain"}
+
+
+@app.route("/api/account/delete", methods=["POST"])
+@auth.login_required
+def api_delete_account():
+    """Erase the account and everything under it. Irreversible by design."""
+    body = request.get_json(silent=True) or {}
+    if body.get("confirm") != "삭제":
+        return fail("확인 문구가 일치하지 않습니다.")
+    user = auth.current_user()
+    db.delete_user(user["id"])
+    from flask import session as flask_session
+    flask_session.clear()
+    return jsonify({"ok": True})
+
+
 @app.errorhandler(413)
 def too_large(_):
     limit = app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
@@ -656,5 +735,8 @@ def not_found(_):
 
 
 if __name__ == "__main__":
+    # Local development entry point. In production the app is served by
+    # gunicorn (see Procfile), never by this reloader.
     # 5001 because macOS runs its AirPlay Receiver on 5000.
-    app.run(debug=True, port=int(os.getenv("PORT", 5001)))
+    debug = os.getenv("FLASK_ENV") != "production" and os.getenv("FLASK_DEBUG", "1") == "1"
+    app.run(debug=debug, port=int(os.getenv("PORT", 5001)))

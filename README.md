@@ -88,6 +88,39 @@ media.py               yt-dlp 다운로드와 ffmpeg 분할
 static/js/capture.js   세 가지 입력 소스를 하나의 인터페이스로
 ```
 
+## 배포 (실제 서비스로 내놓기)
+
+로컬은 `python app.py`, 배포는 **gunicorn** 으로 돕니다 (`Procfile`).
+가장 간단한 길은 [Render](https://render.com) 입니다 — `render.yaml` 이 들어 있어
+저장소를 연결하면 디스크·환경변수까지 한 번에 만들어집니다.
+
+1. GitHub 저장소를 Render 에 연결 → "Blueprint" 로 `render.yaml` 인식
+2. 대시보드에서 비밀 값 4개 입력: `OPENAI_API_KEY`, `ASSEMBLYAI_API_KEY`,
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (`SECRET_KEY` 는 자동 생성)
+3. 구글 콘솔의 승인된 리디렉션 URI 에 `https://<your-domain>/auth/callback` 추가
+4. 배포 후 `https://<your-domain>/` 접속
+
+`FLASK_ENV=production` 이면 앱이 스스로 확인합니다:
+`ALLOW_DEV_LOGIN=1` 이거나 `SECRET_KEY`·구글 자격증명이 없으면 **시작을 거부**합니다.
+보안 쿠키(Secure), 요청 제한(기본 분당 90회/사용자), 업로드 상한, 내부망 차단은
+항상 켜져 있습니다.
+
+### 백업
+
+SQLite 파일 하나가 전부입니다. `scripts/backup_db.sh` 가 실행 중에도 안전하게
+스냅샷을 만들고 최근 14개를 보관합니다. Render 에서는 Cron Job 으로 매일 돌리세요.
+**복원을 한 번은 실제로 해보세요** — 해보지 않은 백업은 백업이 아닙니다.
+
+### 출시 전에 사람이 해야 하는 것
+
+| 항목 | 상태 | 누가 |
+|---|---|---|
+| 공개 URL(호스팅) | 없음 | 계정 필요 — Render 권장 |
+| 구글 로그인 | 자격증명은 있으나 리디렉션 URI 불일치 | 구글 콘솔에서 URI 추가 |
+| 결제 | 미연동 (플랜·사용량 구조는 완성) | 토스페이먼츠/Stripe 계정 |
+| 개인정보처리방침·이용약관 | 초안 있음 (`/privacy`, `/terms`) | 법률 검토, 연락처 교체 |
+| 예전에 유출된 OpenAI 키 3개 | 미폐기 | platform.openai.com 에서 Revoke |
+
 ## 폴더 — 과목 단위로 묶어서 질문
 
 기록을 폴더(예: "운영체제", "팀 회의")에 넣으면 폴더 페이지에서 **그 안의 모든

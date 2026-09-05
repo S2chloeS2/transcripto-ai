@@ -519,3 +519,34 @@ def usage_seconds(user_id, since=None):
 def set_plan(user_id, plan):
     with connect() as conn:
         conn.execute("UPDATE users SET plan=? WHERE id=?", (plan, user_id))
+
+
+# -------------------------------------------------------------- account
+
+def delete_user(user_id):
+    """Remove a user and everything that belongs to them.
+
+    Deletes are explicit rather than relying on ON DELETE CASCADE: databases
+    migrated from before accounts existed got `sessions.user_id` via ALTER
+    TABLE without a cascade clause, and SQLite cannot add one after the fact.
+    Explicit order keeps every foreign key satisfied on both fresh and
+    migrated files.
+    """
+    with connect() as conn:
+        session_ids = [r["id"] for r in conn.execute(
+            "SELECT id FROM sessions WHERE user_id=?", (user_id,))]
+        folder_ids = [r["id"] for r in conn.execute(
+            "SELECT id FROM folders WHERE user_id=?", (user_id,))]
+
+        if session_ids:
+            marks = ",".join("?" * len(session_ids))
+            for table in ("segments", "messages", "keyword_notes", "speakers"):
+                conn.execute(f"DELETE FROM {table} WHERE session_id IN ({marks})", session_ids)
+        if folder_ids:
+            marks = ",".join("?" * len(folder_ids))
+            conn.execute(f"DELETE FROM folder_messages WHERE folder_id IN ({marks})", folder_ids)
+
+        conn.execute("DELETE FROM usage_log WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM folders WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))

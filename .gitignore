@@ -21,3 +21,6 @@ node_modules/
 
 # 세션 데이터베이스
 transcripto.db
+
+# 백업 스냅샷
+backups/

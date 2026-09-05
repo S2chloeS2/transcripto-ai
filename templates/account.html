@@ -66,12 +66,40 @@
       {% endif %}
     </section>
 
+    <section class="card card-pad" style="border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));">
+      <p class="section-label" style="color:var(--bad);">계정 삭제</p>
+      <p class="hint" style="margin-bottom:14px;">
+        계정과 함께 모든 기록·요약·폴더·대화·사용량이 <strong>즉시, 되돌릴 수 없게</strong> 삭제됩니다.
+        남겨둘 기록이 있다면 먼저 각 기록에서 내보내기를 해주세요.
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input class="input" id="delete-confirm" placeholder="확인을 위해 ‘삭제’ 라고 입력" style="max-width:260px;">
+        <button type="button" class="btn btn-ghost" id="delete-account" style="color:var(--bad); border-color:var(--bad);">계정 삭제</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">
+        <a href="{{ url_for('privacy') }}">개인정보처리방침</a> &middot; <a href="{{ url_for('terms') }}">이용약관</a>
+      </p>
+    </section>
+
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+document.getElementById('delete-account').addEventListener('click', async () => {
+  const confirmText = document.getElementById('delete-confirm').value.trim();
+  if (confirmText !== '삭제') { toast('확인 칸에 “삭제” 라고 입력해주세요.', 'bad'); return; }
+  if (!confirm('정말 계정과 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.')) return;
+  try {
+    await api('/api/account/delete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ confirm: confirmText }),
+    });
+    window.location.href = '/';
+  } catch (err) { toast(err.message, 'bad'); }
+});
+
 document.querySelectorAll('.plan-switch').forEach(btn => {
   btn.addEventListener('click', async () => {
     btn.disabled = true;

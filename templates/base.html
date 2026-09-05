@@ -4,6 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TranscriptoAI{% endblock %}</title>
+  <meta name="description" content="강의와 회의를 받아적고, 요약하고, 그 자리에서 나온 말에 대해서만 답하는 AI 노트. 지어내지 않습니다.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="TranscriptoAI">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="듣는 동안, 노트는 알아서 완성된다. 강의든 회의든 소리만 넘겨주면 받아적고 요약합니다.">
+  <meta property="og:image" content="{{ url_for('static', filename='images/story/hero.jpg', _external=True) }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#FBF8F1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4c15 0 29 10 29 26S49 60 32 60 3 48 3 30 17 4 32 4z' fill='%23B9D1AA'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%237FA36F'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/story/owl-reading.jpg') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">

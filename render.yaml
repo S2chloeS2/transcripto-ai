@@ -1,0 +1,31 @@
+# One-click deploy on Render (https://render.com). SQLite lives on a
+# persistent disk so sessions survive restarts and deploys.
+services:
+  - type: web
+    name: transcripto-ai
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --threads 4 --worker-class gthread --timeout 300 --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/transcripto.db
+      - key: PYTHON_VERSION
+        value: "3.12"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

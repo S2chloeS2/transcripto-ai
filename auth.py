@@ -22,6 +22,7 @@ from authlib.integrations.flask_client import OAuth
 from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
 
 import db
+import i18n
 
 bp = Blueprint("auth", __name__)
 oauth = OAuth()
@@ -31,6 +32,32 @@ GOOGLE_METADATA = "https://accounts.google.com/.well-known/openid-configuration"
 
 def configured():
     return bool(os.getenv("GOOGLE_CLIENT_ID") and os.getenv("GOOGLE_CLIENT_SECRET"))
+
+
+def allowlist():
+    """Google accounts allowed to sign in. Empty means open to everyone.
+
+    ALLOWED_EMAILS="me@gmail.com, friend@x.com"  and/or  ALLOWED_DOMAINS="columbia.edu"
+    This is the money lock for a portfolio deploy: strangers can browse the
+    landing page, but only invited people can reach anything that calls a
+    paid API.
+    """
+    emails = {e.strip().lower() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()}
+    domains = {d.strip().lower().lstrip("@") for d in os.getenv("ALLOWED_DOMAINS", "").split(",") if d.strip()}
+    return emails, domains
+
+
+def invite_only():
+    emails, domains = allowlist()
+    return bool(emails or domains)
+
+
+def email_allowed(email):
+    emails, domains = allowlist()
+    if not (emails or domains):
+        return True
+    email = (email or "").lower()
+    return email in emails or email.split("@")[-1] in domains
 
 
 def dev_login_allowed():
@@ -93,6 +120,7 @@ def login():
         configured=configured(),
         dev_login=dev_login_allowed(),
         next_url=request.args.get("next", ""),
+        invite_only=invite_only(),
     )
 
 
@@ -120,7 +148,13 @@ def callback():
     info = token.get("userinfo") or {}
     if not info.get("sub") or not info.get("email"):
         return render_template("login.html", configured=True, dev_login=dev_login_allowed(),
-                               error="구글에서 계정 정보를 받지 못했습니다."), 400
+                               error=i18n._("구글에서 계정 정보를 받지 못했습니다.")), 400
+
+    if not email_allowed(info["email"]):
+        # Not on the list: no account is created, nothing is stored.
+        return render_template("login.html", configured=True, dev_login=dev_login_allowed(),
+                               invite_only=True,
+                               error=i18n._("초대받은 계정만 로그인할 수 있습니다. ({email})").format(email=info["email"])), 403
 
     user = db.upsert_user(
         google_sub=info["sub"],

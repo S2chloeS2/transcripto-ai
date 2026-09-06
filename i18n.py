@@ -368,4 +368,12 @@ TRANSLATIONS = {
     "듣는 동안 노트는 완성된다": "notes that write themselves",
     "찾을 수 없음": "Not found",
     "소리를 받을 곳": "Audio source", "기록 종류": "Session type", "소리 받을 곳": "Audio source", "화자": "Speaker",
+
+    # ---- money locks
+    "이번 달 서비스 전체 처리량이 한도에 도달했습니다. 다음 달 1일에 다시 열립니다.": "The service has reached its monthly processing limit. It reopens on the 1st.",
+    "초대받은 계정만 로그인할 수 있습니다. ({email})": "Only invited accounts can sign in. ({email})",
+    "구글에서 계정 정보를 받지 못했습니다.": "Couldn't get your account details from Google.",
+    "지금은 초대받은 계정만 쓸 수 있습니다.": "Sign-in is currently invite-only.",
+    "서비스 전체 월 처리량": "Service-wide monthly capacity",
+    "전체 사용자 합산. 이 한도를 넘으면 새 전사가 멈춥니다.": "All users combined. New transcription pauses when this is reached.",
 }

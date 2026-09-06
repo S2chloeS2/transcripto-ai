@@ -30,6 +30,7 @@
         {{ _('구글 계정으로 계속하기') }}
       </a>
 
+      {% if invite_only %}<p class="hint" style="text-align:center; margin-top:12px;">{{ _('지금은 초대받은 계정만 쓸 수 있습니다.') }}</p>{% endif %}
       <p class="auth-note">
         {{ _('계속하면 이름과 이메일만 받아옵니다. 구글 비밀번호는 저희에게 전달되지 않습니다.') }}<br>
         {{ _('계속하면 <a href="{terms}">이용약관</a>과 <a href="{privacy}">개인정보처리방침</a>에 동의하는 것입니다.').format(terms=url_for('terms'), privacy=url_for('privacy')) | safe }}

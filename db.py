@@ -550,3 +550,14 @@ def delete_user(user_id):
         conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
         conn.execute("DELETE FROM folders WHERE user_id=?", (user_id,))
         conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+
+
+def usage_seconds_all(since=None):
+    """Seconds transcribed across every account — the service-wide spend meter."""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(seconds), 0) AS s FROM usage_log"
+            + (" WHERE created_at >= ?" if since else ""),
+            (since,) if since else (),
+        ).fetchone()
+        return int(row["s"] or 0)

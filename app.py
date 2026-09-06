@@ -234,7 +234,7 @@ def folder_view(folder_id):
 def account():
     return render_template(
         "account.html", plans=plans.PLANS, order=plans.ORDER,
-        can_switch=auth.dev_login_allowed(),
+        can_switch=auth.dev_login_allowed(), budget=plans.budget_status(),
     )
 
 
@@ -388,6 +388,9 @@ def api_transcribe(session_id):
         if not ok:
             return jsonify({"error": message, "quota": True,
                             "remaining_s": allowance["remaining_s"]}), 402
+        gok, gmsg = plans.global_check(seconds)
+        if not gok:
+            return jsonify({"error": gmsg, "capacity": True}), 503
 
         # Live clips are transcribed one at a time for fast feedback, so no
         # diarization here: speaker A in one clip is not speaker A in the next.
@@ -434,6 +437,9 @@ def api_import():
     if not ok:
         return jsonify({"error": message, "quota": True,
                         "remaining_s": allowance["remaining_s"]}), 402
+    gok, gmsg = plans.global_check(info["duration"])
+    if not gok:
+        return jsonify({"error": gmsg, "capacity": True}), 503
 
     session_id = db.create_session(
         title=info["title"], kind=body.get("kind", "lecture"), source="link",
@@ -486,6 +492,10 @@ def api_import_file():
         shutil.rmtree(workdir, ignore_errors=True)
         return jsonify({"error": message, "quota": True,
                         "remaining_s": allowance["remaining_s"]}), 402
+    gok, gmsg = plans.global_check(seconds)
+    if not gok:
+        shutil.rmtree(workdir, ignore_errors=True)
+        return jsonify({"error": gmsg, "capacity": True}), 503
 
     title = os.path.splitext(os.path.basename(upload.filename))[0][:120]
     session_id = db.create_session(

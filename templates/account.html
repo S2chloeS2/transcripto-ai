@@ -26,6 +26,14 @@
       <p class="hint" style="margin-top:12px;">{{ _('사용량은 받아적은 오디오 길이로 계산합니다. 요약·키워드·챗은 따로 세지 않습니다.') }} {{ _('매달 1일에 초기화됩니다.') }}</p>
     </section>
 
+    {% if budget %}
+    <section class="card card-pad">
+      <p class="section-label">{{ _('서비스 전체 월 처리량') }}</p>
+      <div class="progress-shell" style="height:8px;"><div class="progress-bar {{ 'is-low' if budget.used_pct >= 85 }}" style="width:{{ budget.used_pct }}%"></div></div>
+      <p class="hint" style="margin-top:10px;">{{ budget.used_pct }}% · {{ _('전체 사용자 합산. 이 한도를 넘으면 새 전사가 멈춥니다.') }}</p>
+    </section>
+    {% endif %}
+
     <section>
       <p class="section-label">{{ _('플랜') }}</p>
       <div class="lp-prices" style="margin-top:0;">

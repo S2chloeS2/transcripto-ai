@@ -8,6 +8,7 @@ integration yet: `set_plan` exists so a plan can be assigned by hand while
 that is being wired up, and the account page is honest about it.
 """
 
+import os
 from datetime import datetime, timezone
 
 import db
@@ -110,3 +111,30 @@ def _label(seconds):
     if h: return f"{h}h"
     if m: return f"{m} min"
     return f"{seconds}s" if seconds else "0 min"
+
+
+# ------------------------------------------------- service-wide budget cap
+
+# Total minutes the whole service may transcribe per month, across all users.
+# This is the money lock: however many people sign up, spend cannot exceed
+# roughly BUDGET × transcription price. 0 disables the cap.
+BUDGET_MINUTES = int(os.getenv("MONTHLY_BUDGET_MINUTES", "0"))
+
+
+def global_check(needed_s):
+    """(ok, message). Refuses when the service-wide monthly budget would overrun."""
+    if BUDGET_MINUTES <= 0:
+        return True, ""
+    used = db.usage_seconds_all(since=month_start())
+    if used + needed_s <= BUDGET_MINUTES * 60:
+        return True, ""
+    import i18n
+    return False, i18n._("이번 달 서비스 전체 처리량이 한도에 도달했습니다. 다음 달 1일에 다시 열립니다.")
+
+
+def budget_status():
+    if BUDGET_MINUTES <= 0:
+        return None
+    used = db.usage_seconds_all(since=month_start())
+    return {"limit_s": BUDGET_MINUTES * 60, "used_s": used,
+            "used_pct": min(100, round(used / (BUDGET_MINUTES * 60) * 100))}

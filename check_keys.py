@@ -23,7 +23,7 @@ OK, FAIL, WARN = f"{GREEN}✓{RESET}", f"{RED}✗{RESET}", f"{YELLOW}!{RESET}"
 
 def masked(key):
     """Enough to tell two keys apart, not enough to use one."""
-    return f"{key[:6]}…{key[-4:]}" if len(key) > 12 else "(너무 짧음)"
+    return f"{key[:6]}…{key[-4:]}" if len(key) > 12 else "(too short)"
 
 
 def check_openai(key):
@@ -37,13 +37,13 @@ def check_openai(key):
             messages=[{"role": "user", "content": "hi"}],
             max_tokens=1,
         )
-        return True, "인증 성공, 잔액 있음"
+        return True, "authenticated, credit available"
     except Exception as exc:
         text = str(exc)
         if "invalid_api_key" in text or "Incorrect API key" in text:
-            return False, "키가 올바르지 않습니다"
+            return False, "key is not valid"
         if "insufficient_quota" in text or "no credits" in text.lower():
-            return False, "키는 맞지만 잔액이 0입니다 — 결제 페이지에서 충전하세요"
+            return False, "key is valid but the balance is 0 - add credit on the billing page"
         return False, text[:110]
 
 
@@ -56,9 +56,9 @@ def check_assemblyai(key):
             timeout=20,
         )
         if response.status_code == 200:
-            return True, "인증 성공"
+            return True, "authenticated"
         if response.status_code in (401, 403):
-            return False, "키가 올바르지 않습니다"
+            return False, "key is not valid"
         return False, f"HTTP {response.status_code}: {response.text[:90]}"
     except Exception as exc:
         return False, str(exc)[:110]
@@ -72,9 +72,9 @@ def check_groq(key):
             timeout=20,
         )
         if response.status_code == 200:
-            return True, "인증 성공"
+            return True, "authenticated"
         if response.status_code in (401, 403):
-            return False, "키가 올바르지 않습니다"
+            return False, "key is not valid"
         return False, f"HTTP {response.status_code}"
     except Exception as exc:
         return False, str(exc)[:110]
@@ -82,23 +82,23 @@ def check_groq(key):
 
 CHECKS = [
     ("OPENAI_API_KEY", "OpenAI", check_openai, True,
-     "요약 · 키워드 · AI 챗"),
+     "summaries, keywords, AI chat"),
     ("ASSEMBLYAI_API_KEY", "AssemblyAI", check_assemblyai, False,
-     "미팅 전사 + 화자 분리"),
+     "meeting transcription + speaker separation"),
     ("GROQ_API_KEY", "Groq", check_groq, False,
-     "강의 전사 (가장 저렴)"),
+     "lecture transcription (cheapest)"),
 ]
 
 
 def main():
-    print("\n키 확인 중…\n")
+    print("\nChecking keys...\n")
     results = {}
 
     for env_name, label, check, required, purpose in CHECKS:
         key = (os.getenv(env_name) or "").strip()
         if not key:
             mark = FAIL if required else DIM + "–" + RESET
-            note = "필수인데 비어 있습니다" if required else "없음 (선택)"
+            note = "required but empty" if required else "not set (optional)"
             print(f"  {mark} {label:<12} {DIM}{purpose}{RESET}")
             print(f"      {note}\n")
             results[env_name] = False
@@ -116,23 +116,23 @@ def main():
     have_groq = results.get("GROQ_API_KEY")
 
     if not have_openai:
-        print(f"\n{RED}요약 · 키워드 · 챗이 동작하지 않습니다.{RESET}")
-        print("OPENAI_API_KEY 를 .env 에 넣어주세요.\n")
+        print(f"\n{RED}Summaries, keywords and chat will not work.{RESET}")
+        print("Put OPENAI_API_KEY in .env.\n")
         return 1
 
     lecture = "Groq" if have_groq else ("AssemblyAI" if have_assembly else "OpenAI whisper")
     meeting = "AssemblyAI" if have_assembly else ("Groq" if have_groq else "OpenAI whisper")
 
-    print(f"\n앱이 실제로 쓸 엔진:")
-    print(f"  강의 전사   → {lecture}")
-    print(f"  미팅 전사   → {meeting}")
-    print(f"  화자 분리   → {'가능' if have_assembly else '불가 (AssemblyAI 키 필요)'}")
-    print(f"  요약·챗     → OpenAI\n")
+    print(f"\nEngines the app will actually use:")
+    print(f"  lectures    -> {lecture}")
+    print(f"  meetings    -> {meeting}")
+    print(f"  speakers    -> {'yes' if have_assembly else 'no (needs an AssemblyAI key)'}")
+    print(f"  summary/chat-> OpenAI\n")
 
     if not have_assembly:
-        print(f"{WARN} AssemblyAI 키를 넣으면 미팅 화자 분리가 켜지고 전사 비용이 절반 이하로 줄어듭니다.\n")
+        print(f"{WARN} Adding an AssemblyAI key enables speaker separation for meetings and cuts transcription cost by more than half.\n")
 
-    print(f"{GREEN}준비 완료.{RESET} ./.venv/bin/python app.py 로 실행하세요.\n")
+    print(f"{GREEN}Ready.{RESET} Run with ./.venv/bin/python app.py\n")
     return 0
 
 

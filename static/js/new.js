@@ -1,4 +1,4 @@
-/* Mode picker and imports on the "새 기록" screen. */
+/* Mode picker and imports on the "New note" screen. */
 const T = window.I18N;
 
 let source = 'mic';
@@ -32,7 +32,7 @@ document.querySelectorAll('.seg-btn[data-kind]').forEach((btn) => {
       b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
     });
     // Speaker separation only happens on uploaded meetings, so say so the
-    // moment someone picks "미팅" for a live source.
+    // moment someone picks "meeting" for a live source.
     if (diarNote) diarNote.style.display = kind === 'meeting' ? '' : 'none';
   });
 });

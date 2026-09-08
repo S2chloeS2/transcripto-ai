@@ -60,13 +60,44 @@ def email_allowed(email):
     return email in emails or email.split("@")[-1] in domains
 
 
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def request_is_local():
+    """True only for a request that actually arrived over loopback.
+
+    This is the part that cannot be got wrong by a misconfigured deploy. Env
+    vars live in a dashboard and can be forgotten; the client address cannot.
+    A hosted server is never reached by a stranger over 127.0.0.1, so binding
+    the escape hatch to loopback closes it everywhere that matters.
+    """
+    if request.headers.get("X-Forwarded-For"):
+        # Behind a proxy at all means this is not a laptop. Render, Heroku,
+        # Fly and friends all set it.
+        return False
+    host = (request.host or "").rsplit(":", 1)[0].strip("[]").lower()
+    remote = (request.remote_addr or "").strip("[]").lower()
+    return host in LOOPBACK and remote in LOOPBACK
+
+
 def dev_login_allowed():
     """A local-only escape hatch so the app is usable before Google is set up.
 
-    Deliberately opt-in and refused whenever the app is not in debug mode, so
-    it cannot become a way in on a deployed server.
+    Three locks, and every one of them has to be open:
+      1. ALLOW_DEV_LOGIN=1        — explicitly opted in
+      2. FLASK_ENV != production  — not a deploy that declares itself one
+      3. the request came from loopback
+
+    Lock 3 exists because locks 1 and 2 both depend on env vars being set
+    correctly on the host, and on 2026-09-08 they were not: the deployed site
+    was serving the dev-login button to the public internet and handing out
+    working sessions to anyone who pressed it.
     """
-    return os.getenv("ALLOW_DEV_LOGIN") == "1" and os.getenv("FLASK_ENV") != "production"
+    if os.getenv("ALLOW_DEV_LOGIN") != "1":
+        return False
+    if os.getenv("FLASK_ENV") == "production":
+        return False
+    return request_is_local()
 
 
 def init_app(app):

@@ -30,7 +30,9 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       # Money locks — set these before anyone else can reach the site
+      # Set this in the Render dashboard, not here — this file is public.
+      # Empty means ANY Google account can sign in and spend your API credits.
       - key: ALLOWED_EMAILS
-        value: cats1520@gmail.com
+        sync: false
       - key: MONTHLY_BUDGET_MINUTES
         value: "600"

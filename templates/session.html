@@ -47,7 +47,7 @@
       <span class="capture-status" id="capture-status">{{ _('준비됨') }}</span>
     </div>
     <canvas class="waveform" id="waveform" aria-hidden="true"></canvas>
-    <p class="hint" style="margin-top:10px;">{{ _('다른 사람의 말을 녹음할 때는 미리 알리고 동의를 받아주세요. 소리는 텍스트로 바뀐 직후 삭제됩니다.') }}</p>
+    <p class="hint" style="margin-top:10px;">{{ _('다른 사람의 말을 녹음할 때는 미리 알리고 동의를 받아주세요. 녹음은 이 기록을 삭제할 때까지 보관되어 문장을 눌러 다시 들을 수 있습니다.') }}</p>
   </section>
   {% else %}
   <section class="card card-pad" id="import-panel" style="margin-bottom:20px; display:none;">
@@ -95,18 +95,35 @@
       {% endif %}
 
       <section class="card card-pad">
-        <p class="section-label">{{ _('스크립트') }}</p>
+        <div class="transcript-head">
+          <p class="section-label" style="margin:0;">{{ _('스크립트') }}</p>
+          <label class="translate-pick" title="{{ _('각 문장 아래에 번역을 한 줄씩 붙입니다') }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 5h9M8 3v2M6 9c1 3 3 6 6 8M11 9c-1 3-3 6-6 8M14 19l3-8 3 8M15.5 16h3"/></svg>
+            <select id="translate-select" aria-label="{{ _('번역') }}">
+              <option value="">{{ _('번역 끄기') }}</option>
+              {% for code, name in languages.items() %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="player" id="player" hidden>
+          <button type="button" class="player-btn" id="player-toggle" aria-label="{{ _('재생/일시정지') }}">
+            <svg id="player-icon-play" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>
+            <svg id="player-icon-pause" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+          </button>
+          <span class="player-time" id="player-time">0:00</span>
+          <input type="range" class="player-seek" id="player-seek" min="0" max="1000" value="0" aria-label="{{ _('재생 위치') }}">
+          <span class="player-time" id="player-total">0:00</span>
+          <audio id="audio" preload="none"></audio>
+        </div>
+        <p class="hint" id="replay-hint" style="margin:0 0 10px;" {% if not segments or not segments[0].audio_path %}hidden{% endif %}>{{ _('문장을 누르면 그 부분부터 다시 들을 수 있습니다.') }}</p>
         <div class="transcript" id="transcript">
           {% for seg in segments %}
-          {% if seg.speaker %}
-          <div class="seg-line has-speaker">
-            <span class="seg-time">{{ '%d:%02d'|format((seg.start_ms or 0)//60000, ((seg.start_ms or 0)//1000)%60) }}</span>
-            <span class="seg-speaker sp-{{ speaker_order.get(seg.speaker, 0) % 6 }}">{{ seg.speaker }}</span>
-            <span class="seg-text">{{ seg.text }}</span>
+          <div class="seg-line {{ 'has-speaker' if seg.speaker }} {{ 'has-audio' if seg.audio_path }}" data-id="{{ seg.id }}"
+               {% if seg.audio_path %}data-audio="{{ url_for('api_audio', session_id=session.id, name=seg.audio_path) }}" data-offset="{{ seg.audio_offset_ms or 0 }}"{% endif %}>
+            <span class="seg-time">{% if seg.start_ms is not none %}{{ '%d:%02d'|format(seg.start_ms//60000, (seg.start_ms//1000)%60) }}{% else %}{{ seg.created_at[11:16] }}{% endif %}</span>
+            {% if seg.speaker %}<span class="seg-speaker sp-{{ speaker_order.get(seg.speaker, 0) % 6 }}">{{ seg.speaker }}</span>{% endif %}
+            <span class="seg-body"><span class="seg-text">{{ seg.text }}</span><span class="seg-trans" {% if not seg.translation %}hidden{% endif %} data-lang="{{ seg.translation_lang or '' }}">{{ seg.translation or '' }}</span></span>
           </div>
-          {% else %}
-          <div class="seg-line"><span class="seg-time">{{ seg.created_at[11:16] }}</span><span class="seg-text">{{ seg.text }}</span></div>
-          {% endif %}
           {% endfor %}
         </div>
         {% if not segments %}

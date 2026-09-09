@@ -14,10 +14,11 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 import traceback
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, render_template, request, url_for
+from flask import Flask, abort, jsonify, render_template, request, send_file, url_for
 
 load_dotenv()
 
@@ -44,6 +45,12 @@ app.config.update(
 # Reject oversized bodies before Werkzeug reads them into memory or onto disk.
 # Long recordings arrive as uploads, so this is generous — but not unbounded.
 app.config["MAX_CONTENT_LENGTH"] = int(os.getenv("MAX_UPLOAD_MB", "500")) * 1024 * 1024
+
+# Recordings are kept so a line of the transcript can be played back. They
+# live next to the database unless AUDIO_DIR points elsewhere (on Render, the
+# persistent disk).
+AUDIO_DIR = os.getenv("AUDIO_DIR") or os.path.join(os.path.dirname(db.DB_PATH), "audio")
+os.makedirs(AUDIO_DIR, exist_ok=True)
 
 db.init()
 auth.init_app(app)
@@ -157,6 +164,38 @@ def _keywords_of(session):
         return []
 
 
+def session_audio_dir(session_id):
+    path = os.path.join(AUDIO_DIR, str(session_id))
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def keep_audio(session_id, src, name):
+    """Move a recording into the session's audio folder. Returns the relative
+    name the segment rows point at."""
+    dst = os.path.join(session_audio_dir(session_id), name)
+    shutil.move(src, dst)
+    return name
+
+
+def drop_audio(session_id):
+    shutil.rmtree(os.path.join(AUDIO_DIR, str(session_id)), ignore_errors=True)
+
+
+def session_language(session):
+    """The transcript's language code, detecting and caching it on first use."""
+    lang = session.get("language")
+    if lang:
+        return lang
+    text = db.get_transcript(session["id"])
+    if len(text) < 80:
+        return None
+    lang = ai.detect_language(text)
+    if lang:
+        db.update_session(session["id"], language=lang)
+    return lang
+
+
 # --------------------------------------------------------------------- pages
 
 @app.route("/")
@@ -189,6 +228,7 @@ def session_view(session_id):
         keyword_notes=db.get_keyword_notes(session_id),
         folders=current_folders(),
         engines=engines.available(),
+        languages=ai.LANGUAGE_NAMES,
     )
 
 
@@ -273,6 +313,7 @@ def api_modify_session(session_id):
 
     if request.method == "DELETE":
         db.delete_session(session_id)
+        drop_audio(session_id)
         return jsonify({"ok": True})
 
     body = request.get_json(silent=True) or {}
@@ -378,6 +419,7 @@ def api_transcribe(session_id):
     user = auth.current_user()
     suffix = os.path.splitext(clip.filename or "")[1] or ".webm"
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    kept = None
     try:
         tmp.write(data)
         tmp.close()
@@ -402,18 +444,26 @@ def api_transcribe(session_id):
             prompt=db.get_transcript(session_id),
         )
         db.log_usage(user["id"], session_id, seconds)
+        if text:
+            # Keep the clip so this line can be played back later.
+            name = f"clip-{int(time.time() * 1000)}{suffix}"
+            kept = keep_audio(session_id, tmp.name, name)
     except Exception as exc:
         app.logger.error("transcribe failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
     finally:
-        os.unlink(tmp.name)
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
 
     remaining = plans.allowance(user["id"], user)["remaining_s"]
     if not text:
         return jsonify({"text": "", "note": "no speech detected", "remaining_s": remaining})
 
-    db.add_segment(session_id, text)
-    return jsonify({"text": text, "remaining_s": remaining})
+    seg_id = db.add_segment(session_id, text, audio_path=kept, audio_offset_ms=0)
+    return jsonify({
+        "text": text, "id": seg_id, "remaining_s": remaining,
+        "audio": url_for("api_audio", session_id=session_id, name=kept) if kept else None,
+    })
 
 
 # --------------------------------------------------------------- link import
@@ -543,6 +593,8 @@ def _run_pipeline(session_id, path, workdir):
         # diarization there and use the cheaper engine.
         diarize = kind == "meeting"
         offset_ms = 0
+        # The whole recording stays on disk so any line can be replayed.
+        audio_name = keep_audio(session_id, path, "full" + os.path.splitext(path)[1])
 
         for index, chunk in enumerate(chunks, start=1):
             set_job(session_id, done=index - 1,
@@ -551,12 +603,17 @@ def _run_pipeline(session_id, path, workdir):
                 chunk, kind=kind, diarize=diarize, prompt=db.get_transcript(session_id)
             )
             for seg in result["segments"]:
+                # Non-diarized engines return one block per chunk with no
+                # timing; the chunk's own offset is still a usable start.
+                start = (seg["start_ms"] + offset_ms) if seg.get("start_ms") is not None else offset_ms
                 db.add_segment(
                     session_id,
                     seg["text"],
                     speaker=seg.get("speaker"),
-                    start_ms=(seg["start_ms"] + offset_ms) if seg.get("start_ms") is not None else None,
+                    start_ms=start,
                     end_ms=(seg["end_ms"] + offset_ms) if seg.get("end_ms") is not None else None,
+                    audio_path=audio_name,
+                    audio_offset_ms=start,
                 )
             # Chunks are cut at a fixed length, so each one starts that much
             # further into the recording.
@@ -596,8 +653,12 @@ def _build_summary(session_id):
     if not transcript:
         raise ValueError("There is nothing transcribed in this session yet.")
 
-    result = ai.summarize(transcript, kind=session.get("kind", "lecture"))
+    result = ai.summarize(
+        transcript, kind=session.get("kind", "lecture"), lang=session_language(session)
+    )
     fields = {"summary": result["summary"], "keywords": result["keywords"]}
+    if result.get("language") and not session.get("language"):
+        fields["language"] = result["language"]
     # Only adopt the generated title if the user has not set one of their own.
     if session["title"] in {"Lecture", "Meeting", "Untitled session"}:
         fields["title"] = result["title"]
@@ -641,9 +702,11 @@ def api_keyword(session_id):
 
     transcript = db.get_transcript(session_id)
     if not transcript:
-        return fail("아직 받아적은 내용이 없습니다.")
+        return fail(i18n._("아직 받아적은 내용이 없습니다."))
     try:
-        explanation = ai.explain_keyword(keyword, transcript)
+        explanation = ai.explain_keyword(
+            keyword, transcript, lang=session_language(db.get_session(session_id))
+        )
     except Exception as exc:
         app.logger.error("keyword failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
@@ -666,7 +729,10 @@ def api_chat(session_id):
 
     transcript = db.get_transcript(session_id)
     try:
-        reply = ai.answer(question, transcript, history=db.get_messages(session_id))
+        reply = ai.answer(
+            question, transcript, history=db.get_messages(session_id),
+            lang=session_language(db.get_session(session_id)),
+        )
     except Exception as exc:
         app.logger.error("chat failed: %s", traceback.format_exc())
         return fail(str(exc), 502)
@@ -703,6 +769,53 @@ def api_transcript(session_id):
     return jsonify({"segments": db.get_segments(session_id)})
 
 
+# ----------------------------------------------------------- audio & translate
+
+@app.route("/api/sessions/<int:session_id>/audio/<path:name>")
+@auth.login_required
+def api_audio(session_id, name):
+    """Stream a kept recording. Range requests let the player seek."""
+    if not owned(session_id):
+        abort(404)
+    # Names are generated by us; anything with a separator is not ours.
+    if "/" in name or "\\" in name or name.startswith("."):
+        abort(404)
+    path = os.path.join(AUDIO_DIR, str(session_id), name)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path, conditional=True, max_age=3600)
+
+
+@app.route("/api/sessions/<int:session_id>/translate", methods=["POST"])
+@auth.login_required
+def api_translate(session_id):
+    """Translate transcript lines into a target language, caching per line."""
+    if not owned(session_id):
+        return fail(i18n._("No such session."), 404)
+    body = request.get_json(silent=True) or {}
+    target = (body.get("target") or "").lower()[:2]
+    if target not in ai.LANGUAGE_NAMES:
+        return fail(i18n._("Unsupported language."))
+    try:
+        ids = [int(i) for i in (body.get("ids") or [])][:60]
+    except (TypeError, ValueError):
+        return fail(i18n._("Bad segment ids."))
+    if not ids:
+        return jsonify({"translations": {}})
+
+    result = db.cached_translations(session_id, ids, target)
+    todo = db.segments_needing_translation(session_id, ids, target)
+    if todo:
+        try:
+            fresh = ai.translate_segments({s["id"]: s["text"] for s in todo}, target)
+        except Exception as exc:
+            app.logger.error("translate failed: %s", traceback.format_exc())
+            return fail(str(exc), 502)
+        db.save_translations(session_id, target, fresh)
+        result.update(fresh)
+    return jsonify({"translations": {str(k): v for k, v in result.items()}})
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
@@ -727,6 +840,9 @@ def api_delete_account():
     if body.get("confirm") != "삭제":
         return fail(i18n._("확인 문구가 일치하지 않습니다."))
     user = auth.current_user()
+    # Recordings on disk go with the rows.
+    for session in db.list_sessions(user["id"]):
+        drop_audio(session["id"])
     db.delete_user(user["id"])
     from flask import session as flask_session
     flask_session.clear()

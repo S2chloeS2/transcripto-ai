@@ -42,7 +42,7 @@ if (startBtn) {
           method: 'POST',
           body: form,
         });
-        if (data.text) appendSegment(data.text);
+        if (data.text) appendSegment(data.text, data.id, data.audio);
       } catch (err) {
         toast(err.message, 'bad');
       } finally {
@@ -92,14 +92,181 @@ if (startBtn) {
   }
 }
 
-function appendSegment(text) {
+function appendSegment(text, id, audio) {
   if (transcriptEmpty) transcriptEmpty.remove();
   const line = document.createElement('div');
-  line.className = 'seg-line is-new';
-  line.innerHTML = `<span class="seg-time">${timeNow()}</span><span class="seg-text"></span>`;
+  line.className = 'seg-line is-new' + (audio ? ' has-audio' : '');
+  if (id) line.dataset.id = id;
+  if (audio) {
+    line.dataset.audio = audio;
+    line.dataset.offset = '0';
+    const hint = document.getElementById('replay-hint');
+    if (hint) hint.hidden = false;
+  }
+  line.innerHTML = `<span class="seg-time">${timeNow()}</span><span class="seg-body"><span class="seg-text"></span><span class="seg-trans" hidden></span></span>`;
   line.querySelector('.seg-text').textContent = text;
   transcriptEl.appendChild(line);
   transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  if (translateTarget && id) translateLines([line]);
+}
+
+// ---------------------------------------------------------------- playback
+
+// Every line knows which recording it came from and where it starts in it.
+// Clicking a line loads that file (if it is not already loaded) and seeks.
+const audioEl = document.getElementById('audio');
+const player = document.getElementById('player');
+const playerToggle = document.getElementById('player-toggle');
+const playerSeek = document.getElementById('player-seek');
+const playerTime = document.getElementById('player-time');
+const playerTotal = document.getElementById('player-total');
+const iconPlay = document.getElementById('player-icon-play');
+const iconPause = document.getElementById('player-icon-pause');
+let playingLine = null;
+
+function fmtTime(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function playLine(line) {
+  const src = line.dataset.audio;
+  if (!src) return;
+  const offset = Number(line.dataset.offset || 0) / 1000;
+  player.hidden = false;
+  if (playingLine) playingLine.classList.remove('is-playing');
+  playingLine = line;
+  line.classList.add('is-playing');
+
+  const seekAndPlay = () => {
+    audioEl.currentTime = offset;
+    audioEl.play().catch((err) => toast(err.message, 'bad'));
+  };
+  if (audioEl.dataset.src !== src) {
+    audioEl.dataset.src = src;
+    audioEl.src = src;
+    audioEl.addEventListener('loadedmetadata', seekAndPlay, { once: true });
+    audioEl.load();
+  } else {
+    seekAndPlay();
+  }
+}
+
+transcriptEl.addEventListener('click', (event) => {
+  const line = event.target.closest('.seg-line.has-audio');
+  if (!line || window.getSelection().toString()) return;
+  playLine(line);
+});
+
+if (audioEl) {
+  playerToggle.addEventListener('click', () => {
+    if (!audioEl.src) return;
+    if (audioEl.paused) audioEl.play(); else audioEl.pause();
+  });
+  audioEl.addEventListener('play', () => { iconPlay.hidden = true; iconPause.hidden = false; });
+  audioEl.addEventListener('pause', () => { iconPlay.hidden = false; iconPause.hidden = true; });
+  audioEl.addEventListener('ended', () => { if (playingLine) playingLine.classList.remove('is-playing'); });
+  audioEl.addEventListener('loadedmetadata', () => { playerTotal.textContent = fmtTime(audioEl.duration); });
+  audioEl.addEventListener('timeupdate', () => {
+    playerTime.textContent = fmtTime(audioEl.currentTime);
+    if (audioEl.duration) playerSeek.value = Math.round((audioEl.currentTime / audioEl.duration) * 1000);
+    // Move the highlight along as playback crosses into the next line of
+    // the same recording.
+    const now = audioEl.currentTime * 1000;
+    let best = null;
+    transcriptEl.querySelectorAll('.seg-line.has-audio').forEach((l) => {
+      if (l.dataset.audio !== audioEl.dataset.src) return;
+      const off = Number(l.dataset.offset || 0);
+      if (off <= now + 250 && (!best || off > Number(best.dataset.offset || 0))) best = l;
+    });
+    if (best && best !== playingLine) {
+      if (playingLine) playingLine.classList.remove('is-playing');
+      playingLine = best;
+      best.classList.add('is-playing');
+    }
+  });
+  playerSeek.addEventListener('input', () => {
+    if (audioEl.duration) audioEl.currentTime = (playerSeek.value / 1000) * audioEl.duration;
+  });
+}
+
+// ------------------------------------------------------------- translation
+
+// A second line under each sentence, in the language chosen here. Cached on
+// the server per line, so turning it off and on again costs nothing.
+const translateSelect = document.getElementById('translate-select');
+let translateTarget = '';
+try { translateTarget = localStorage.getItem('translateTarget') || ''; } catch { /* private mode */ }
+if (translateSelect) {
+  if (translateTarget && [...translateSelect.options].some((o) => o.value === translateTarget)) {
+    translateSelect.value = translateTarget;
+  } else {
+    translateTarget = '';
+  }
+  translateSelect.addEventListener('change', () => {
+    translateTarget = translateSelect.value;
+    try { localStorage.setItem('translateTarget', translateTarget); } catch { /* ignore */ }
+    applyTranslationMode();
+  });
+  applyTranslationMode();
+}
+
+function applyTranslationMode() {
+  const lines = [...transcriptEl.querySelectorAll('.seg-line[data-id]')];
+  if (!translateTarget) {
+    lines.forEach((l) => { l.querySelector('.seg-trans').hidden = true; });
+    return;
+  }
+  const todo = [];
+  lines.forEach((l) => {
+    const t = l.querySelector('.seg-trans');
+    if (t.dataset.lang === translateTarget && t.textContent) t.hidden = false;
+    else todo.push(l);
+  });
+  translateLines(todo);
+}
+
+let translateQueue = [];
+let translateBusy = false;
+
+async function translateLines(lines) {
+  lines.forEach((l) => {
+    const t = l.querySelector('.seg-trans');
+    t.hidden = false;
+    t.classList.add('is-loading');
+    if (t.dataset.lang !== translateTarget) t.textContent = '…';
+  });
+  translateQueue.push(...lines);
+  if (translateBusy) return;
+  translateBusy = true;
+  try {
+    while (translateQueue.length && translateTarget) {
+      const batch = translateQueue.splice(0, 25);
+      const target = translateTarget;
+      const ids = batch.map((l) => l.dataset.id);
+      try {
+        const data = await api(`/api/sessions/${sessionId}/translate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, target }),
+        });
+        batch.forEach((l) => {
+          const t = l.querySelector('.seg-trans');
+          const text = data.translations[l.dataset.id];
+          t.classList.remove('is-loading');
+          if (text) { t.textContent = text; t.dataset.lang = target; }
+          else { t.textContent = ''; t.hidden = true; }
+        });
+      } catch (err) {
+        batch.forEach((l) => { const t = l.querySelector('.seg-trans'); t.classList.remove('is-loading'); t.textContent = ''; t.hidden = true; });
+        toast(err.message, 'bad');
+        break;
+      }
+    }
+  } finally {
+    translateBusy = false;
+    translateQueue = [];
+  }
 }
 
 // ------------------------------------------------------------------- importing
@@ -283,6 +450,10 @@ document.getElementById('export').addEventListener('click', () => {
   lines.push(`## ${T.exportTranscript}`, '');
   transcriptEl.querySelectorAll('.seg-line').forEach((line) => {
     lines.push(`[${line.querySelector('.seg-time').textContent}] ${line.querySelector('.seg-text').textContent}`);
+    const trans = line.querySelector('.seg-trans');
+    if (trans && !trans.hidden && trans.textContent.trim() && trans.textContent !== '…') {
+      lines.push(`    ${trans.textContent}`);
+    }
   });
 
   const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });

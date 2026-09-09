@@ -126,6 +126,9 @@ def init():
         if "folder_id" not in cols:
             conn.execute("ALTER TABLE sessions ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL")
 
+        if "language" not in cols:
+            conn.execute("ALTER TABLE sessions ADD COLUMN language TEXT")
+
         ucols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         if "plan" not in ucols:
             conn.execute("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'")
@@ -135,6 +138,10 @@ def init():
             ("speaker", "TEXT"),
             ("start_ms", "INTEGER"),
             ("end_ms", "INTEGER"),
+            ("translation", "TEXT"),       # cached translation of `text`
+            ("translation_lang", "TEXT"),  # language code of that translation
+            ("audio_path", "TEXT"),        # file under AUDIO_DIR, relative
+            ("audio_offset_ms", "INTEGER"),  # where this segment starts in it
         ):
             if column not in existing:
                 conn.execute(f"ALTER TABLE segments ADD COLUMN {column} {decl}")
@@ -191,7 +198,7 @@ def list_sessions(user_id, folder_id=None):
 
 
 def update_session(session_id, **fields):
-    allowed = {"title", "kind", "summary", "keywords", "source_url", "folder_id"}
+    allowed = {"title", "kind", "summary", "keywords", "source_url", "folder_id", "language"}
     sets, values = [], []
     for key, value in fields.items():
         if key not in allowed:
@@ -215,15 +222,18 @@ def delete_session(session_id):
 
 # ---------------------------------------------------------------- segments
 
-def add_segment(session_id, text, speaker=None, start_ms=None, end_ms=None):
+def add_segment(session_id, text, speaker=None, start_ms=None, end_ms=None,
+                audio_path=None, audio_offset_ms=None):
+    """Store one transcribed segment and return its id."""
     ts = now()
     with connect() as conn:
-        conn.execute(
-            "INSERT INTO segments (session_id, text, created_at, speaker, start_ms, end_ms)"
-            " VALUES (?,?,?,?,?,?)",
-            (session_id, text, ts, speaker, start_ms, end_ms),
+        cur = conn.execute(
+            "INSERT INTO segments (session_id, text, created_at, speaker, start_ms,"
+            " end_ms, audio_path, audio_offset_ms) VALUES (?,?,?,?,?,?,?,?)",
+            (session_id, text, ts, speaker, start_ms, end_ms, audio_path, audio_offset_ms),
         )
         conn.execute("UPDATE sessions SET updated_at=? WHERE id=?", (ts, session_id))
+        return cur.lastrowid
 
 
 def replace_segments(session_id, segments):
@@ -247,7 +257,8 @@ def replace_segments(session_id, segments):
 def get_segments(session_id):
     with connect() as conn:
         rows = conn.execute(
-            "SELECT text, created_at, speaker, start_ms, end_ms"
+            "SELECT id, text, created_at, speaker, start_ms, end_ms, translation,"
+            " translation_lang, audio_path, audio_offset_ms"
             " FROM segments WHERE session_id=? ORDER BY id",
             (session_id,),
         ).fetchall()
@@ -271,6 +282,41 @@ def get_transcript(session_id, with_speakers=False):
         who = names.get(label) or (f"화자 {label}" if label else "알 수 없음")
         lines.append(f"{who}: {s['text']}")
     return "\n".join(lines).strip()
+
+
+def segments_needing_translation(session_id, ids, lang):
+    """Of `ids`, the segments that have no cached translation into `lang`."""
+    if not ids:
+        return []
+    marks = ",".join("?" * len(ids))
+    with connect() as conn:
+        rows = conn.execute(
+            f"SELECT id, text FROM segments WHERE session_id=? AND id IN ({marks})"
+            " AND (translation IS NULL OR translation_lang IS NOT ?) ORDER BY id",
+            (session_id, *ids, lang),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def cached_translations(session_id, ids, lang):
+    if not ids:
+        return {}
+    marks = ",".join("?" * len(ids))
+    with connect() as conn:
+        rows = conn.execute(
+            f"SELECT id, translation FROM segments WHERE session_id=? AND id IN ({marks})"
+            " AND translation_lang=?",
+            (session_id, *ids, lang),
+        ).fetchall()
+        return {r["id"]: r["translation"] for r in rows}
+
+
+def save_translations(session_id, lang, mapping):
+    with connect() as conn:
+        conn.executemany(
+            "UPDATE segments SET translation=?, translation_lang=? WHERE id=? AND session_id=?",
+            [(text, lang, seg_id, session_id) for seg_id, text in mapping.items()],
+        )
 
 
 # ---------------------------------------------------------------- messages

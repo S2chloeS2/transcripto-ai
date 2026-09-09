@@ -34,13 +34,15 @@ Every answer quotes the line it came from. Every summary is built from the words
 |---|---|
 | **Five ways in** | Computer audio (Zoom / YouTube tab), the room (mic), both mixed, a pasted link (YouTube · TED), or an uploaded recording (Zoom / Teams local files) |
 | **Live captions** | Audio is cut into ~6 s clips and transcribed as it comes; the running transcript primes the next clip so terminology stays consistent |
-| **Summaries that fit** | Lectures are organized by topic; meetings by decisions and who owns them |
+| **Study notes, not blurbs** | Lecture summaries are exam-revision notes: every concept as the speaker defined it, every example, formulas, what was emphasised, and self-test questions. Long recordings are summarised part by part and merged so the middle is not skipped. Meetings get decisions, owners and open questions |
+| **Replay any line** | Recordings are kept; tap a transcript line to hear that moment again, with the highlight following playback |
+| **Live translation** | Turn on a second line under each sentence in Korean, English, Japanese and more; cached per line |
 | **Key terms** | Extracted from the transcript; tap one for an explanation that starts with how *this* speaker used it. Saved, so it is instant next time |
 | **Grounded chat** | Answers only from the transcript, with quotes. Off-topic questions are refused in one sentence |
 | **Folders** | Group a course's lectures and ask across all of them — "How did weeks 3 and 5 explain scheduling differently?" — with the source lecture named |
 | **Speaker separation** | For uploaded meetings: who spoke, how much, and a summary that says who committed to what |
 | **Plans & metering** | Free 5 h / Standard 25 h / Pro 60 h per month, metered on transcribed audio only; overruns return a clear 402 |
-| **Two languages** | English by default, Korean with one click — UI, toasts, and API errors alike. AI output follows the language of the recording |
+| **Two languages** | English by default, Korean with one click — UI, toasts, and API errors alike. The recording's language is detected once and every AI output is written in it explicitly |
 
 Audio is never stored: it is deleted the moment it becomes text.
 
@@ -64,7 +66,7 @@ button appears on the login page. It is refused outright when `FLASK_ENV=product
 
 ```
 app.py        Flask routes, import pipeline, production guards, per-user rate limit
-ai.py         OpenAI prompts — grounding rules, language matching, folder retrieval
+ai.py         OpenAI prompts — staged study notes, language detection, translation, grounding rules
 engines.py    Transcription back ends behind one interface (AssemblyAI · Groq · OpenAI)
 db.py         SQLite: users, sessions, segments, folders, keyword notes, usage
 plans.py      Plan definitions and monthly allowance checks
@@ -96,7 +98,10 @@ A few decisions worth knowing:
 
 With `FLASK_ENV=production` the app refuses to start if dev login is enabled or a secret is
 missing. Rate limiting, upload caps, private-network blocking, and secure cookies are always on.
-`scripts/backup_db.sh` snapshots SQLite safely while running.
+`scripts/backup_db.sh` snapshots SQLite safely while running. Recordings are stored under
+`AUDIO_DIR` (next to the database by default, `/var/data/audio` on Render's disk); on Render's
+free tier there is no disk, so both are lost on redeploy. Notes use `SUMMARY_MODEL` (gpt-4o by
+default); chat, keywords and translation stay on gpt-4o-mini.
 
 **Not yet wired:** payments (plan structure and metering are complete; Toss/Stripe is the next
 step) and a hosted URL.
@@ -124,4 +129,5 @@ Illustrations are original watercolor-style images generated for this project.
 - **영어 기본 · 한국어 전환** — 상단 버튼 한 번으로 화면·알림·API 오류까지 전부
 
 실행은 위 *Quick start* 와 같습니다. 배포·백업·출시 전 체크리스트는 *Deploy* 절을 보세요.
-오디오는 텍스트로 바뀐 직후 삭제되며 서버에 남지 않습니다.
+녹음은 기록을 삭제할 때까지 보관되어, 스크립트의 문장을 누르면 그 부분부터 다시 들을 수 있습니다.
+요약은 시험 대비 노트 수준으로 자세히 쓰고, 번역을 켜면 각 문장 아래에 한 줄씩 번역이 붙습니다.

@@ -24,3 +24,6 @@ transcripto.db
 
 # 백업 스냅샷
 backups/
+# Kept recordings (per-session folders)
+audio/
+backups/
